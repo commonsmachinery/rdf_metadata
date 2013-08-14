@@ -76,35 +76,30 @@ class RDFXML(object):
         # Check what kind of node this is by presence of rdf:ID,
         # rdf:nodeID or rdf:about
 
-        ID = element.getAttributeNS(RDF_NS, 'ID')
-        nodeID = element.getAttributeNS(RDF_NS, 'nodeID')
+        fragment_id = element.getAttributeNS(RDF_NS, 'ID')
+        node_id = element.getAttributeNS(RDF_NS, 'nodeID')
         about = element.getAttributeNS(RDF_NS, 'about')
 
-
-        # What if none are provided?
-        if not ID and not nodeID and not about:
-            if not top_level:
-                # Generate a nodeID
-                nodeID = uuid.uuid1()
-
-        if ID and not nodeID and not about:
-            # TODO
+        if fragment_id:
+            # TODO: turn ID into an about
             assert False, 'not implemented yet'
 
-        elif nodeID and not ID and not about:
-            # TODO
-            assert False, 'not implemented yet'
+        if node_id:
+            if self.strict and about:
+                raise RDFXMLError('specifying rdf:nodeID on a non-blank node', element)
 
-        elif not ID and not nodeID:
-            # about can be "" here, but then we must be on the top level
-            if not about:
-                assert top_level
+            node = self.root.get_blank_node(model.NodeID(node_id))
 
-            try:
-                node = self.root[about]
-            except KeyError:
-                node = model.ResourceNode(self, about)
-                self.root.resource_nodes[about] = node
+        elif about:
+            node = self.root.get_resource_node(about)
+
+        else:
+            if top_level:
+                # treat this as an empty rdf:about
+                node = self.root.get_resource_node("")
+            else:
+                # internally generated node ID
+                node = self.root.get_blank_node(model.NodeID(None))
 
         node.reprs.append(repr)
 
@@ -233,23 +228,22 @@ class RDFXML(object):
                 raise RDFError('both rdf:resource and rdf:nodeID attributes',
                                element)
 
+        if resource_uri:
+            node = self.root.get_resource_node(resource_uri)
+        elif node_id:
+            node = self.root.get_blank_node(model.NodeID(node_id))
+        else:
+            node = None
+
+        # TODO: parse propertyAttr
+
         repr = domrepr.Repr(domrepr.EmptyProperty(self.root.doc, element))
 
-        if resource_uri:
-            try:
-                node = self.root[resource_uri]
-            except KeyError:
-                node = model.ResourceNode(self, resource_uri)
-                self.root.resource_nodes[resource_uri] = node
-
+        if node is not None:
             node.reprs.append(repr)
 
             return model.PredicateEmpty(
                 self.root, repr, get_element_uri(element), node)
-
-        elif node_id:
-            assert False, 'not implemented yet'
-
         else:
             node = model.LiteralNode(self.root, repr, "", None)
 
@@ -270,6 +264,6 @@ def is_rdf_element(element, name):
             and element.localName == name)
         
 def get_element_uri(element):
-    return element.namespaceURI + element.localName
+    return model.QName(element.namespaceURI, element.prefix, element.localName)
 
     

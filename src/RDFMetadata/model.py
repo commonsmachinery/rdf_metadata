@@ -11,6 +11,7 @@ underlying RDF/XML.
 """
 
 import collections
+import uuid
 
 class Root(collections.Mapping):
     def __init__(self, doc, root_element):
@@ -25,14 +26,44 @@ class Root(collections.Mapping):
         self.root_element_is_rdf = None
         self.rdf_prefix = None
         
+        # There is exactly one instance for each URI or nodeID
         self.resource_nodes = {}
+        self.blank_nodes = {}
 
         from . import parser
         parser.RDFXML(self)
 
-    def __str__(self):
-        return '\n'.join(map(str, self.resource_nodes.itervalues()))
 
+    def get_resource_node(self, uri):
+        """Return a ResourceNode for uri, creating one if it doesn't exist.
+        """
+
+        try:
+            node = self.resource_nodes[uri]
+        except KeyError:
+            node = ResourceNode(self, uri)
+            self.resource_nodes[uri] = node
+
+        return node
+
+
+    def get_blank_node(self, uri):
+        """Return a BlankNode for uri, creating one if it doesn't exist.
+        """
+
+        try:
+            node = self.blank_nodes[uri]
+        except KeyError:
+            node = BlankNode(self, uri)
+            self.blank_nodes[uri] = node
+
+        return node
+
+
+    def __str__(self):
+        s = '\n'.join(map(str, self.resource_nodes.itervalues()))
+        s += '\n'.join(map(str, self.blank_nodes.itervalues()))
+        return s
 
     #
     # Support read-only Mapping interface to access the top subjects
@@ -48,7 +79,53 @@ class Root(collections.Mapping):
         return len(self.resource_nodes)
     
 
+class URI(object):
+    """Base class for representing different kinds of URIs.
 
+    Must be immutable (TODO: figure out decorators for that.)
+    """
+
+    def __init__(self, uri):
+        self.uri = uri
+
+    def __cmp__(self, other):
+        return cmp(self.uri, str(other))
+
+    def __hash__(self):
+        return hash(self.uri)
+    
+    def __str__(self):
+        return self.uri
+    
+
+class QName(URI):
+    """A fully qualified name, used mainly by predicates.
+
+    Keeps track of all the components of the name, but behaves like an
+    URI string otherwise.
+
+    """
+
+    def __init__(self, ns_uri, ns_prefix, local_name):
+        self.ns_uri = ns_uri
+        self.ns_prefix = ns_prefix
+        self.local_name = local_name
+        super(QName, self).__init__(ns_uri + local_name)
+
+
+class NodeID(URI):
+    """Used for the ID of a blank node.
+    """
+    def __init__(self, node_id):
+        if node_id:
+            self.node_id = node_id
+            self.external = True
+        else:
+            self.node_id = str(uuid.uuid1())
+            self.external = False
+
+        super(NodeID, self).__init__('_:' + self.node_id)
+        
 
 class Node(object):
     def __init__(self, root):

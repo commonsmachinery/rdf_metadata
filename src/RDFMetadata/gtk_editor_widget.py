@@ -50,6 +50,8 @@ class MetadataEditor(object):
         # 3: row type
         self.tree_store = Gtk.TreeStore(object, str, str, str)
 
+        self.added_to_tree_store = set()
+
         # Always start with the default resource, if it exists
         res = root.get("")
         if res:
@@ -83,9 +85,9 @@ class MetadataEditor(object):
         self.widget.pack_start(self.tree_view, True, True, 0)
 
 
-    def _add_resource_to_tree(self, res):
+    def _add_resource_to_tree(self, res, pos = None):
         if res.uri:
-            label = res.uri
+            label = str(res.uri)
         else:
             label = '(default)'
 
@@ -93,15 +95,47 @@ class MetadataEditor(object):
 
         # Add the predicates and their target objects
         for pred in res:
-            if isinstance(pred.object, model.LiteralNode):
-                i = self.tree_store.append(
-                    res_iter,
-                    [pred, pred.uri, pred.object.value, 'Literal'])
+            self._add_predicate_to_tree(pred, res_iter)
 
-            elif isinstance(pred.object, model.ResourceNode):
+
+    def _add_predicate_to_tree(self, pred, parent):
+        if isinstance(pred.object, model.LiteralNode):
+            i = self.tree_store.append(
+                parent,
+                [pred, str(pred.uri), str(pred.object.value), 'Literal'])
+
+        elif isinstance(pred.object, model.ResourceNode):
+            i = self.tree_store.append(
+                parent,
+                [pred, str(pred.uri), str(pred.object.uri), 'Resource ref'])
+
+        elif isinstance(pred.object, model.BlankNode):
+            node = pred.object
+
+            if node in self.added_to_tree_store:
+                # Only external IDs should be possible to add more than once
+                assert node.uri.external
+
+                # Just add reference second time around
                 i = self.tree_store.append(
-                    res_iter,
-                    [pred, pred.uri, pred.object.uri, 'Resource ref'])
+                    parent,
+                    [pred, str(pred.uri), str(node.uri), 'Blank node ref'])
+            else:
+                self.added_to_tree_store.add(node)
+
+                if node.uri.external:
+                    uri = str(node.uri)
+                else:
+                    uri = ''
+
+                i = self.tree_store.append(
+                    parent,
+                    [pred, str(pred.uri), uri, 'Blank node'])
+
+                # Add the predicates and their target objects
+                for node_pred in node:
+                    self._add_predicate_to_tree(node_pred, i)
+
         
     def _on_add_clicked(self, btn):
         pass

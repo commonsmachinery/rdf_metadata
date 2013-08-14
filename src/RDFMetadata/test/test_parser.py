@@ -359,3 +359,146 @@ class TestResourceNodes(unittest.TestCase):
         self.assertIsInstance(res2.reprs[1].repr, domrepr.EmptyProperty)
 
         
+
+class TestBlankNodes(unittest.TestCase):
+    def test_empty_description(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description>
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+
+        # Only results in the main resource
+        self.assertEqual(len(r), 1)
+        res = r[""]
+        pred = res[0]
+        self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/creator")
+        self.assertIsInstance(pred.repr.repr, domrepr.ResourceProperty)
+
+        obj = pred.object
+        self.assertIsInstance(obj, model.BlankNode)
+
+        # The node should have a generated, internal ID
+        self.assertFalse(obj.uri.external)
+
+        # The blank node should be recorded in root
+        
+        self.assertEqual(len(r.blank_nodes), 1)
+        self.assertTrue(obj.uri in r.blank_nodes)
+        res2 = r.blank_nodes[obj.uri]
+        self.assertIs(obj, res2)
+
+        # There should be no predicates, and one description node
+        self.assertEqual(len(res2), 0)
+        self.assertEqual(len(res2.reprs), 1)
+        self.assertIsInstance(res2.reprs[0].repr, domrepr.DescriptionNode)
+        
+
+    def test_description_with_predicate(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description>
+        <dc:title>Test</dc:title>
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+
+        res = r[""]
+        pred = res[0]
+        obj = pred.object
+        self.assertIsInstance(obj, model.BlankNode)
+
+        # The blank node should be recorded in root
+        
+        self.assertEqual(len(r.blank_nodes), 1)
+        self.assertTrue(obj.uri in r.blank_nodes)
+        res2 = r.blank_nodes[obj.uri]
+        self.assertIs(obj, res2)
+
+        # There should be one predicate
+        self.assertEqual(len(res2), 1)
+        pred = res2[0]
+        self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/title")
+
+        obj = pred.object
+        self.assertIsInstance(obj, model.LiteralNode)
+        self.assertEqual(obj.value, 'Test')
+        self.assertIsNone(obj.type_uri)
+
+
+    def test_named_node(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description rdf:nodeID="1">
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+
+        # Only results in the main resource
+        res = r[""]
+        pred = res[0]
+        obj = pred.object
+        self.assertIsInstance(obj, model.BlankNode)
+
+        # The node should use the provided ID
+        self.assertTrue(obj.uri.external)
+        self.assertEqual(obj.uri, '_:1')
+        
+
+    def test_linked_node(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+
+  <rdf:Description rdf:nodeID="1">
+    <dc:title>Test</dc:title>
+  </rdf:Description>
+
+  <rdf:Description rdf:about="">
+    <dc:creator rdf:nodeID="1" />
+  </rdf:Description>
+</rdf:RDF>
+''')
+
+        # Only results in the main resource
+        res = r[""]
+        pred = res[0]
+        obj = pred.object
+        self.assertIsInstance(obj, model.BlankNode)
+
+        # The node should use the provided ID
+        self.assertTrue(obj.uri.external)
+        self.assertEqual(obj.uri, '_:1')
+        
+        # The blank node should be recorded in root
+        
+        self.assertEqual(len(r.blank_nodes), 1)
+        self.assertTrue(obj.uri in r.blank_nodes)
+        res2 = r.blank_nodes[obj.uri]
+        self.assertIs(obj, res2)
+
+        # There should be one predicate
+        self.assertEqual(len(res2), 1)
+        pred = res2[0]
+        self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/title")
+
+        obj = pred.object
+        self.assertIsInstance(obj, model.LiteralNode)
+        self.assertEqual(obj.value, 'Test')
+        self.assertIsNone(obj.type_uri)
