@@ -15,30 +15,27 @@ nodes.
 """
 
 import collections
-import xml.dom
-
-RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 
 class RDFRoot(collections.Mapping):
     def __init__(self, doc, root_element):
         super(RDFRoot, self).__init__()
         
         self.doc = doc
-        self.root_element = root_element
+        self.element = root_element
+
+        # Some RDF/XML house-keeping to simplify modifying the tree
+        # later
+        self.root_element_is_rdf = None
+        self.rdf_prefix = None
         
         self.resource_nodes = {}
 
-        # Determine if we're starting with is rdf:RDF or some other element
-        self.root_element_is_rdf = is_rdf_element(root_element, 'RDF')
+        from . import parser
+        parser.RDFXML(self)
 
-        # This is ugly: I can't find a way to ask the DOM tree for the
-        # prefix associated with a namespace, so just grab it when we
-        # see it in an RDF element...
-        self.rdf_prefix = None
-        if root_element.namespaceURI == RDF_NS:
-            self.rdf_prefix = root_element.prefix
-        
-        self._parse()
+    def __str__(self):
+        return '\n'.join(map(str, self.resource_nodes.itervalues()))
+
 
     #
     # Support read-only Mapping interface to access the top subjects
@@ -54,39 +51,6 @@ class RDFRoot(collections.Mapping):
         return len(self.resource_nodes)
     
 
-    #
-    # Internal methods
-    #
-    
-    def _parse(self):
-        """Parse the provided root element to extract all information in it."""
-
-        # Look for rdf:Descriptions
-        # TODO: also look for types nodes in rdf:RDF
-
-        for el in iter_subelements(self.root_element):
-            if is_rdf_element(el, 'Description'):
-
-                # Ugly hack as above: grab prefix if possible
-                if self.rdf_prefix is None:
-                    self.rdf_prefix = el.prefix
-
-                self._parse_resource(el)
-
-
-    def _parse_resource(self, el):
-        # Missing about attribute is equal to empty string
-        about = el.getAttributeNS(RDF_NS, 'about')
-
-        try:
-            res = self.resource_nodes[about]
-        except KeyError:
-            res = RDFResourceNode(self, about)
-            self.resource_nodes[about] = res
-
-        res._parse_element(el)
-            
-                
 
 
 class RDFNode(object):
@@ -96,14 +60,29 @@ class RDFNode(object):
 
 class RDFSubjectNode(RDFNode, collections.Sequence):
 
-    def __init__(self, root):
+    def __init__(self, root, uri):
         super(RDFSubjectNode, self).__init__(root)
 
+        self.uri = uri
         self.description_nodes = []
         self.predicates = []
+        
 
     def set_type(self, type_uri):
         pass
+
+    def set_uri(self, uri):
+        # TODO
+        pass
+
+    def __str__(self):
+        s = '# {0}({1})\n'.format(self.__class__.__name__, self.uri)
+
+        if self.predicates:
+            s += '<{0}>\n    {1}.\n'.format(
+                self.uri, ';\n    '.join(map(str, self.predicates)))
+
+        return s
 
     #
     # Support read-only sequence interface to access the predicates
@@ -119,34 +98,12 @@ class RDFSubjectNode(RDFNode, collections.Sequence):
         return len(self.predicates)
 
 
-    def _parse_element(self, el):
-        self.description_nodes.append(el)
-
-        for subel in iter_subelements(el):
-            # TODO: filter out all rdf: elements?
-
-            uri = subel.namespaceURI + subel.localName
-            pred = RDFPredicate(self.root, uri)
-            pred._parse_element(subel)
-            self.predicates.append(pred)
-            
-
 class RDFResourceNode(RDFSubjectNode):
-    def __init__(self, root, uri):
-        super(RDFResourceNode, self).__init__(root)
+    pass
 
-        self.uri = uri
-        
-    def set_uri(self, uri):
-        # TODO
-        pass
-    
 
 class RDFBlankNode(RDFSubjectNode):
-    def __init__(self, root):
-        super(RDFBlankNode, self).__init__(root)
-
-        self.node_id = None
+    pass
 
 
 class RDFLiteralNode(RDFNode):
@@ -194,6 +151,18 @@ class RDFPredicate(object):
         self.uri = uri
         self.object = None
         
+    def __str__(self):
+        if isinstance(self.object, RDFLiteralNode):
+            if self.object.type_uri:
+                return '<{0}> "{1}"^^<{2}>'.format(
+                    self.uri, self.object.value, self.object.type_uri)
+            else:
+                return '<{0}> "{1}"'.format(self.uri, self.object.value)
+        elif isinstance(self.object, RDFSubjectNode):
+            return '<{0}> <{1}>'.format(self.uri, self.object.uri)
+        else:
+            return '<{0}> ""'.format(self.uri)
+
     def set_value(self, value):
         if self.object:
             self.object.set_value(value)
@@ -202,32 +171,3 @@ class RDFPredicate(object):
         if self.object:
             self.object.set_type(type_uri)
 
-    def _parse_element(self, el):
-        # TODO: first check for sub-elements or attributes
-        self.element = el
-
-        type_uri = el.getAttributeNS(RDF_NS, 'datatype')
-        if not type_uri:
-            type_uri = None
-            
-        el.normalize()
-        for n in el.childNodes:
-            if n.nodeType == n.TEXT_NODE:
-                self.object = RDFLiteralNode(self.root, self, n.data, type_uri)
-                break
-        else:
-            self.object = RDFLiteralNode(self.root, self, "", type_uri)
-            
-
-
-def iter_subelements(element):
-    """Return an iterator over all child nodes that are elements"""
-
-    for n in element.childNodes:
-        if n.nodeType == n.ELEMENT_NODE:
-            yield n
-        
-def is_rdf_element(element, name):
-    """Return TRUE if this is an RDF element with the local NAME."""
-    return (element.namespaceURI == RDF_NS
-            and element.localName == name)

@@ -1,4 +1,4 @@
-# test_model - Test RDF model objects
+# test_parser - Test parsing RDF/XML into model objects
 #
 # Copyright 2013 Commons Machinery http://commonsmachinery.se/
 #
@@ -57,6 +57,52 @@ class TestTopLevelResource(unittest.TestCase):
         self.assertEqual(len(res.description_nodes), 1)
 
 
+    def test_multiple_empty_descriptions(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="http://example.org/test">
+  </rdf:Description>
+
+  <rdf:Description rdf:about="http://example.org/test">
+  </rdf:Description>
+</rdf:RDF>
+''')
+        # They will get merged into one resource
+        self.assertEqual(len(r), 1)
+
+        self.assertTrue("http://example.org/test" in r)
+        res = r["http://example.org/test"]
+        self.assertEqual(res.uri, "http://example.org/test")
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(res.description_nodes), 2)
+
+
+    def test_multiple_subjects(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="">
+  </rdf:Description>
+
+  <rdf:Description rdf:about="http://example.org/test">
+  </rdf:Description>
+</rdf:RDF>
+''')
+        self.assertEqual(len(r), 2)
+
+        self.assertTrue("" in r)
+        res = r[""]
+        self.assertEqual(res.uri, "")
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(res.description_nodes), 1)
+
+        self.assertTrue("http://example.org/test" in r)
+        res = r["http://example.org/test"]
+        self.assertEqual(res.uri, "http://example.org/test")
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(res.description_nodes), 1)
+
+
+class TestLiteralNodes(unittest.TestCase):
     def test_literal_values(self):
         r = get_root('''<?xml version="1.0"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -142,3 +188,48 @@ class TestTopLevelResource(unittest.TestCase):
         self.assertEqual(obj.value, '2013-08-13')
         self.assertEqual(obj.type_uri, "http://www.w3.org/2001/XMLSchema#date")
         
+
+class TestResourceNodes(unittest.TestCase):
+    def test_empty_description(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description rdf:about="http://example.org/test">
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+
+        # This is the non-abbreviated way have a triplet where the
+        # object is another resource. It is usually handled with an
+        # rdf:resource attribute instead.
+
+        self.assertEqual(len(r), 2)
+
+        # The main resource
+
+        self.assertTrue("" in r)
+        res = r[""]
+        self.assertEqual(res.uri, "")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(len(res.description_nodes), 1)
+
+        pred = res[0]
+        self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/creator")
+
+        obj = pred.object
+        self.assertIsInstance(obj, model.RDFResourceNode)
+
+        # The linked resource
+        
+        self.assertTrue("http://example.org/test" in r)
+        res2 = r["http://example.org/test"]
+        self.assertEqual(res2.uri, "http://example.org/test")
+        self.assertEqual(len(res2), 0)
+        self.assertEqual(len(res2.description_nodes), 1)
+
+        # These should be the same 
+        self.assertIs(obj, res2)
