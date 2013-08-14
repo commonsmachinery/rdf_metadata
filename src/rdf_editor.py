@@ -26,7 +26,15 @@ class MainWindow(Gtk.Window):
         
 def main():
     doc = minidom.parse(sys.stdin)
-    root = model.Root(doc = doc, root_element = doc.documentElement)
+
+    # Use whatever rdf:RDF elements there is
+    rdfs = doc.getElementsByTagNameNS("http://www.w3.org/1999/02/22-rdf-syntax-ns#", 'RDF')
+
+    if not rdfs:
+        sys.exit('no RDF found')
+    
+    # For now just use the first one
+    root = model.Root(doc = doc, root_element = rdfs[0])
 
     win = MainWindow(root)
     win.connect("delete-event", Gtk.main_quit)

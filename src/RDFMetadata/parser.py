@@ -48,9 +48,6 @@ class RDFXML(object):
         nodeElementList: ws* (nodeElement ws* )*
         """
 
-        # Look for rdf:Descriptions
-        # TODO: also look for types nodes in rdf:RDF
-
         for el in iter_subelements(element):
             if is_rdf_element(el, 'Description'):
 
@@ -59,6 +56,10 @@ class RDFXML(object):
                     self.root.rdf_prefix = el.prefix
 
                 self.parse_node_element(el, top_level)
+            else:
+                # Only use typed nodes when in rdf:RDF or deeper
+                if not top_level or self.root.root_element_is_rdf:
+                    self.parse_node_element(el, top_level)
 
 
     def parse_node_element(self, element, top_level = False):
@@ -71,7 +72,12 @@ class RDFXML(object):
           end-element()
         """
         
-        repr = domrepr.Repr(domrepr.DescriptionNode(self.root.doc, element))
+        if is_rdf_element(element, 'Description'):
+            typed_node = False
+            repr = domrepr.Repr(domrepr.DescriptionNode(self.root.doc, element))
+        else:
+            typed_node = True
+            repr = domrepr.Repr(domrepr.TypedNode(self.root.doc, element))
 
         # Check what kind of node this is by presence of rdf:ID,
         # rdf:nodeID or rdf:about
@@ -103,8 +109,22 @@ class RDFXML(object):
 
         node.reprs.append(repr)
 
-        # TODO: parse property attributes
+        if typed_node:
+            # Generate the equivalent of a <rdf:type rdf:resource="..." /> predicate
 
+            type_resource = self.root.get_resource_node(get_element_uri(element))
+            type_resource.reprs.append(repr)
+            
+            predicate = model.PredicateEmpty(
+                self.root, repr,
+                model.QName(RDF_NS, self.root.rdf_prefix, 'type'),
+                type_resource)
+
+            node.predicates.append(predicate)
+            
+
+        # TODO: parse property attributes
+        
         self.parse_property_element_list(node, element)
 
         return node

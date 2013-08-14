@@ -105,6 +105,49 @@ class TestTopLevelResource(unittest.TestCase):
         self.assertEqual(len(res.reprs), 1)
 
 
+    def test_typed_node(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:cc="http://creativecommons.org/ns#">
+  <cc:Work rdf:about="http://example.org/test">
+  </cc:Work>
+</rdf:RDF>
+''')
+        # Two resources (!) since this syntax is an abbreviation
+        # for having a predicate like <rdf:type rdf:resource="cc:Work" />
+        self.assertEqual(len(r), 2)
+
+        self.assertTrue("http://example.org/test" in r)
+        res = r["http://example.org/test"]
+        self.assertEqual(res.uri, "http://example.org/test")
+        self.assertEqual(len(res.reprs), 1)
+        self.assertIsInstance(res.reprs[0].repr, domrepr.TypedNode)
+
+        # An rdf:type equivalent predicate should have been added
+        self.assertEqual(len(res), 1)
+        pred = res[0]
+        self.assertEqual(pred.uri, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
+
+        # But it's representation is the cc:Work node
+        self.assertIsInstance(pred.repr.repr, domrepr.TypedNode)
+
+        obj = pred.object
+        self.assertIsInstance(obj, model.ResourceNode)
+        self.assertEqual(obj.uri, "http://creativecommons.org/ns#Work")
+
+        # The linked resource should be the same as the one in root
+        
+        self.assertTrue("http://creativecommons.org/ns#Work" in r)
+        res2 = r["http://creativecommons.org/ns#Work"]
+        self.assertIs(obj, res2)
+
+        # Same representation here - this element have three roles
+        self.assertEqual(len(res2.reprs), 1)
+        self.assertIsInstance(res2.reprs[0].repr, domrepr.TypedNode)
+        
+
+
+
 class TestLiteralNodes(unittest.TestCase):
     def test_literal_values(self):
         r = get_root('''<?xml version="1.0"?>
