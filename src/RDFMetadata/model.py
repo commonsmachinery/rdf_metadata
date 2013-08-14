@@ -8,18 +8,15 @@
 
 """Model RDF graphs in a way suitable for inline editing of the
 underlying RDF/XML.
-
-The naming convention is that XML objects ("nodes") are called
-elements, while the subjects or objects of RDF triples are called
-nodes.
 """
 
 import collections
 
-class RDFRoot(collections.Mapping):
+class Root(collections.Mapping):
     def __init__(self, doc, root_element):
-        super(RDFRoot, self).__init__()
-        
+        super(Root, self).__init__()
+
+        # FIXME: This XML stuff should go into the domrepr module instead
         self.doc = doc
         self.element = root_element
 
@@ -53,18 +50,18 @@ class RDFRoot(collections.Mapping):
 
 
 
-class RDFNode(object):
+class Node(object):
     def __init__(self, root):
         self.root = root
 
 
-class RDFSubjectNode(RDFNode, collections.Sequence):
+class SubjectNode(Node, collections.Sequence):
 
     def __init__(self, root, uri):
-        super(RDFSubjectNode, self).__init__(root)
+        super(SubjectNode, self).__init__(root)
 
         self.uri = uri
-        self.description_nodes = []
+        self.reprs = []
         self.predicates = []
         
 
@@ -79,8 +76,8 @@ class RDFSubjectNode(RDFNode, collections.Sequence):
         s = '# {0}({1})\n'.format(self.__class__.__name__, self.uri)
 
         if self.predicates:
-            s += '<{0}>\n    {1}.\n'.format(
-                self.uri, ';\n    '.join(map(str, self.predicates)))
+            s += '<{0}>\n    {1} .\n'.format(
+                self.uri, ' ;\n    '.join(map(str, self.predicates)))
 
         return s
 
@@ -98,35 +95,25 @@ class RDFSubjectNode(RDFNode, collections.Sequence):
         return len(self.predicates)
 
 
-class RDFResourceNode(RDFSubjectNode):
+class ResourceNode(SubjectNode):
     pass
 
 
-class RDFBlankNode(RDFSubjectNode):
+class BlankNode(SubjectNode):
     pass
 
 
-class RDFLiteralNode(RDFNode):
-    def __init__(self, root, predicate, value, type_uri = None):
-        super(RDFLiteralNode, self).__init__(root)
-        self.predicate = predicate
+class LiteralNode(Node):
+    def __init__(self, root, repr, value, type_uri = None):
+        super(LiteralNode, self).__init__(root)
+        self.repr = repr
 
         self.value = value
         self.type_uri = type_uri
 
     def set_value(self, value):
         self.value = value
-
-        # Update XML. Drop old value first, then add new if still set
-        while True:
-            n = self.predicate.element.firstChild
-            if n is None:
-                break
-            self.predicate.element.removeChild(n)
-
-        if self.value:
-            self.predicate.element.appendChild(self.root.doc.createTextNode(value))
-
+        self.repr.change_content(value)
 
     def set_type(self, type_uri):
         self.type_uri = type_uri
@@ -144,21 +131,21 @@ class RDFLiteralNode(RDFNode):
                 RDF_NS, self.root.rdf_prefix + ':datatype', type_uri)
 
 
-class RDFPredicate(object):
-    def __init__(self, root, uri):
+class Predicate(object):
+    def __init__(self, root, repr, uri, object):
         self.root = root
-        self.element = None
+        self.repr = repr
         self.uri = uri
-        self.object = None
+        self.object = object
         
     def __str__(self):
-        if isinstance(self.object, RDFLiteralNode):
+        if isinstance(self.object, LiteralNode):
             if self.object.type_uri:
                 return '<{0}> "{1}"^^<{2}>'.format(
                     self.uri, self.object.value, self.object.type_uri)
             else:
                 return '<{0}> "{1}"'.format(self.uri, self.object.value)
-        elif isinstance(self.object, RDFSubjectNode):
+        elif isinstance(self.object, SubjectNode):
             return '<{0}> <{1}>'.format(self.uri, self.object.uri)
         else:
             return '<{0}> ""'.format(self.uri)
@@ -171,3 +158,11 @@ class RDFPredicate(object):
         if self.object:
             self.object.set_type(type_uri)
 
+class PredicateResource(Predicate):
+    pass
+
+class PredicateLiteral(Predicate):
+    pass
+
+class PredicateEmpty(Predicate):
+    pass

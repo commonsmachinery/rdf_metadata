@@ -26,7 +26,7 @@ class MainWindow(Gtk.Window):
         
 def main():
     doc = minidom.parse(sys.stdin)
-    root = model.RDFRoot(doc = doc, root_element = doc.documentElement)
+    root = model.Root(doc = doc, root_element = doc.documentElement)
 
     win = MainWindow(root)
     win.connect("delete-event", Gtk.main_quit)

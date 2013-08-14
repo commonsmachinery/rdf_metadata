@@ -27,11 +27,11 @@ class MetadataEditor(object):
         self.toolbar = Gtk.Toolbar()
         self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)
 
-        self.add_property_toolbtn = Gtk.ToolButton(
-            Gtk.STOCK_ADD, label = 'Add property')
-        self.add_property_toolbtn.connect('clicked', self._on_add_clicked)
-        self.toolbar.insert(self.add_property_toolbtn, -1)
-
+#         self.add_property_toolbtn = Gtk.ToolButton(
+#             Gtk.STOCK_ADD, label = 'Add property')
+#         self.add_property_toolbtn.connect('clicked', self._on_add_clicked)
+#         self.toolbar.insert(self.add_property_toolbtn, -1)
+# 
         self.print_xml_toolbtn = Gtk.ToolButton(
             None, label = 'Print XML')
         self.print_xml_toolbtn.connect('clicked', self._on_print_xml_clicked)
@@ -43,6 +43,11 @@ class MetadataEditor(object):
         # The tree view is the main part of the GUI
         #
 
+        # Tree store columns:
+        # 0: model.RDFNode object
+        # 1: property
+        # 2: value
+        # 3: row type
         self.tree_store = Gtk.TreeStore(object, str, str, str)
 
         # Always start with the default resource, if it exists
@@ -69,8 +74,7 @@ class MetadataEditor(object):
         column = Gtk.TreeViewColumn("Value", render, text = 2)
         self.tree_view.append_column(column)
 
-        render = Gtk.CellRendererText(editable = True)
-        render.connect('edited', self._on_type_edited)
+        render = Gtk.CellRendererText()
         column = Gtk.TreeViewColumn("Type", render, text = 3)
         self.tree_view.append_column(column)
 
@@ -85,39 +89,35 @@ class MetadataEditor(object):
         else:
             label = '(default)'
 
-        res_iter = self.tree_store.append(None, [res, 'Resource:', label, ''])
+        res_iter = self.tree_store.append(None, [res, label, '', 'Resource'])
 
         # Add the predicates and their target objects
         for pred in res:
-            if isinstance(pred.object, model.RDFLiteralNode):
+            if isinstance(pred.object, model.LiteralNode):
                 i = self.tree_store.append(
                     res_iter,
-                    [pred, pred.uri, pred.object.value, pred.object.type_uri])
-                
+                    [pred, pred.uri, pred.object.value, 'Literal'])
+
+            elif isinstance(pred.object, model.ResourceNode):
+                i = self.tree_store.append(
+                    res_iter,
+                    [pred, pred.uri, pred.object.uri, 'Resource ref'])
         
     def _on_add_clicked(self, btn):
         pass
 
         
     def _on_print_xml_clicked(self, btn):
-        self.root.root_element.writexml(sys.stdout)
+        self.root.element.writexml(sys.stdout)
 
 
     def _on_value_edited(self, render, path, text):
         i = self.tree_store.get_iter(path)
-        self.tree_store[i][2] = text
-
         obj = self.tree_store[i][0]
-        if isinstance(obj, model.RDFResourceNode):
-            obj.set_uri(text)
-        elif isinstance(obj, model.RDFPredicate):
+
+        if isinstance(obj, model.Predicate):
             obj.set_value(text)
 
+        # TODO: this should be changed on callbacks from the domrepr layer
+        self.tree_store[i][2] = text
 
-    def _on_type_edited(self, render, path, text):
-        i = self.tree_store.get_iter(path)
-        self.tree_store[i][3] = text
-
-        obj = self.tree_store[i][0]
-        obj.set_type(text)
-            
