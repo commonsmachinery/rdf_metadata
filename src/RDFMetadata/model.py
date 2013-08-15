@@ -14,24 +14,14 @@ import collections
 import uuid
 
 class Root(collections.Mapping):
-    def __init__(self, doc, root_element):
+    def __init__(self, repr):
         super(Root, self).__init__()
 
-        # FIXME: This XML stuff should go into the domrepr module instead
-        self.doc = doc
-        self.element = root_element
+        self.repr = repr
 
-        # Some RDF/XML house-keeping to simplify modifying the tree
-        # later
-        self.root_element_is_rdf = None
-        self.rdf_prefix = None
-        
         # There is exactly one instance for each URI or nodeID
         self.resource_nodes = {}
         self.blank_nodes = {}
-
-        from . import parser
-        parser.RDFXML(self)
 
 
     def get_resource_node(self, uri):
@@ -189,24 +179,17 @@ class LiteralNode(Node):
         self.type_uri = type_uri
 
     def set_value(self, value):
-        self.value = value
-        self.repr.change_content(value)
+        self.repr.set_literal_value(value)
 
-    def set_type(self, type_uri):
+        # TODO: perhaps this should be triggered by XML notifications?
+        self.value = value
+
+
+    def set_type_uri(self, type_uri):
         self.type_uri = type_uri
 
-        # Remove old first, then add new if still set
-        try:
-            self.predicate.element.removeAttributeNS(RDF_NS, 'datatype')
-        except xml.dom.NotFoundErr:
-            pass
-
-        if type_uri:
-            # Ugly DOM - have to build the qname ourselves
-            assert self.root.rdf_prefix is not None
-            self.predicate.element.setAttributeNS(
-                RDF_NS, self.root.rdf_prefix + ':datatype', type_uri)
-
+        self.repr.set_datatype(type_uri)
+        
 
 class Predicate(object):
     def __init__(self, root, repr, uri, object):
@@ -227,13 +210,6 @@ class Predicate(object):
         else:
             return '<{0}> ""'.format(self.uri)
 
-    def set_value(self, value):
-        if self.object:
-            self.object.set_value(value)
-
-    def set_type(self, type_uri):
-        if self.object:
-            self.object.set_type(type_uri)
 
 class PredicateResource(Predicate):
     pass

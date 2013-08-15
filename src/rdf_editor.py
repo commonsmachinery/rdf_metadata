@@ -12,7 +12,7 @@
 import sys
 from gi.repository import Gtk
 
-from RDFMetadata import model, gtk_editor_widget
+from RDFMetadata import parser, gtk_editor_widget
 
 # Temporary: move into proper file loaders
 from xml.dom import minidom
@@ -34,7 +34,7 @@ def main():
         sys.exit('no RDF found')
     
     # For now just use the first one
-    root = model.Root(doc = doc, root_element = rdfs[0])
+    root = parser.parse_RDFXML(doc = doc, root_element = rdfs[0])
 
     win = MainWindow(root)
     win.connect("delete-event", Gtk.main_quit)

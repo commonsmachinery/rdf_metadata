@@ -21,28 +21,34 @@ class RDFXMLError(Exception):
         super(RDFXMLError, self).__init__(msg)
 
 
-class RDFXML(object):
+def parse_RDFXML(doc, root_element, strict = True):
+    p = RDFXMLParser(doc, root_element, strict = strict)
+    return p.root
+
+
+
+class RDFXMLParser(object):
     """Parse RDFXML into model object directly.  This class is allowed
     to modify the internal member variables of the model objects.
     """
 
-    def __init__(self, root, strict = True):
-        self.root = root
-        self.strict = True
+    def __init__(self, doc, root_element, strict = True):
+        self.strict = strict
 
-        # Determine if we're starting with is rdf:RDF or some other element
-        self.root.root_element_is_rdf = is_rdf_element(self.root.element, 'RDF')
+        self.doc = doc
+        self.root_element = root_element
 
-        # This is ugly: I can't find an easy way to ask the DOM tree
-        # for the prefix associated with a namespace, so just grab it
-        # when we see it in an RDF element...
-        if self.root.element.namespaceURI == RDF_NS:
-            self.root.rdf_prefix = self.root.element.prefix
+        ns_root = Namespaces(None, root_element)
+        
+        root_repr = domrepr.Root(doc, root_element, ns_root,
+                                 is_rdf_element(root_element, 'RDF'))
 
-        self.parse_node_element_list(self.root.element, top_level = True)
+        self.root = model.Root(root_repr)
+
+        self.parse_node_element_list(ns_root, root_element, top_level = True)
         
     
-    def parse_node_element_list(self, element, top_level = False):
+    def parse_node_element_list(self, ns, element, top_level = False):
         """7.2.10: http://www.w3.org/TR/rdf-syntax-grammar/#nodeElementList
 
         nodeElementList: ws* (nodeElement ws* )*
@@ -50,19 +56,14 @@ class RDFXML(object):
 
         for el in iter_subelements(element):
             if is_rdf_element(el, 'Description'):
-
-                # Ugly hack as above: grab prefix if possible
-                if self.root.rdf_prefix is None:
-                    self.root.rdf_prefix = el.prefix
-
-                self.parse_node_element(el, top_level)
+                self.parse_node_element(ns, el, top_level)
             else:
                 # Only use typed nodes when in rdf:RDF or deeper
-                if not top_level or self.root.root_element_is_rdf:
-                    self.parse_node_element(el, top_level)
+                if not top_level or self.root.repr.root_element_is_rdf:
+                    self.parse_node_element(ns, el, top_level)
 
 
-    def parse_node_element(self, element, top_level = False):
+    def parse_node_element(self, ns, element, top_level = False):
         """7.2.11: http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
 
         nodeElement:
@@ -72,12 +73,14 @@ class RDFXML(object):
           end-element()
         """
         
+        ns = Namespaces(ns, element)
+
         if is_rdf_element(element, 'Description'):
             typed_node = False
-            repr = domrepr.Repr(domrepr.DescriptionNode(self.root.doc, element))
+            repr = domrepr.Repr(domrepr.DescriptionNode(self.doc, element, ns))
         else:
             typed_node = True
-            repr = domrepr.Repr(domrepr.TypedNode(self.root.doc, element))
+            repr = domrepr.Repr(domrepr.TypedNode(self.doc, element, ns))
 
         # Check what kind of node this is by presence of rdf:ID,
         # rdf:nodeID or rdf:about
@@ -115,9 +118,10 @@ class RDFXML(object):
             type_resource = self.root.get_resource_node(get_element_uri(element))
             type_resource.reprs.append(repr)
             
+            
             predicate = model.PredicateEmpty(
                 self.root, repr,
-                model.QName(RDF_NS, self.root.rdf_prefix, 'type'),
+                model.QName(RDF_NS, repr.get_rdf_ns_prefix(), 'type'),
                 type_resource)
 
             node.predicates.append(predicate)
@@ -125,12 +129,12 @@ class RDFXML(object):
 
         # TODO: parse property attributes
         
-        self.parse_property_element_list(node, element)
+        self.parse_property_element_list(ns, node, element)
 
         return node
 
         
-    def parse_property_element_list(self, node, element):
+    def parse_property_element_list(self, ns, node, element):
         """7.2.13: http://www.w3.org/TR/rdf-syntax-grammar/#propertyEltList
 
         propertyEltList: ws* (propertyElt ws* ) *
@@ -139,13 +143,13 @@ class RDFXML(object):
         for el in iter_subelements(element):
             # TODO: filter out all rdf: elements?
 
-            predicate = self.parse_property_element(el)
+            predicate = self.parse_property_element(ns, el)
             if predicate is not None:
                 node.predicates.append(predicate)
             
 
             
-    def parse_property_element(self, element):
+    def parse_property_element(self, ns, element):
         """7.2.14: http://www.w3.org/TR/rdf-syntax-grammar/#propertyElt
 
         propertyElt:
@@ -175,7 +179,7 @@ class RDFXML(object):
         element_nodes = [n for n in element.childNodes if n.nodeType == n.ELEMENT_NODE]
         
         if element_nodes:
-            return self.parse_resource_property_element(element, element_nodes)
+            return self.parse_resource_property_element(ns, element, element_nodes)
             
         # Step 3: literal value, or empty.  Normalize into one node or none
         element.normalize()
@@ -184,12 +188,12 @@ class RDFXML(object):
         
         if text_nodes:
             text = text_nodes[0].data
-            return self.parse_literal_property_element(element, text)
+            return self.parse_literal_property_element(ns, element, text)
         else:
-            return self.parse_empty_property_element(element)
+            return self.parse_empty_property_element(ns, element)
 
 
-    def parse_resource_property_element(self, element, subelements):
+    def parse_resource_property_element(self, ns, element, subelements):
         """7.2.15: http://www.w3.org/TR/rdf-syntax-grammar/#resourcePropertyElt
 
         resourcePropertyElt:
@@ -198,17 +202,19 @@ class RDFXML(object):
             end-element()
         """
         
+        ns = Namespaces(ns, element)
+
         if self.strict and len(subelements) > 1:
             raise RDFError('more than one sub-element in a predicate',
                            self.element)
 
-        node = self.parse_node_element(subelements[0])
-        repr = domrepr.Repr(domrepr.ResourceProperty(self.root.doc, element))
+        node = self.parse_node_element(ns, subelements[0])
+        repr = domrepr.Repr(domrepr.ResourceProperty(self.doc, element, ns))
         return model.PredicateResource(
             self.root, repr, get_element_uri(element), node)
         
 
-    def parse_literal_property_element(self, element, text):
+    def parse_literal_property_element(self, ns, element, text):
         """7.2.16: http://www.w3.org/TR/rdf-syntax-grammar/#literalPropertyElt
 
         literalPropertyElt:
@@ -218,20 +224,22 @@ class RDFXML(object):
             end-element()
         """
 
+        ns = Namespaces(ns, element)
+
         type_uri = element.getAttributeNS(RDF_NS, 'datatype')
         if not type_uri:
             type_uri = None
             
         # TODO: xml:lang
 
-        repr = domrepr.Repr(domrepr.LiteralProperty(self.root.doc, element))
+        repr = domrepr.Repr(domrepr.LiteralProperty(self.doc, element, ns))
         node = model.LiteralNode(self.root, repr, text, type_uri)
 
         return model.PredicateLiteral(
             self.root, repr, get_element_uri(element), node)
         
 
-    def parse_empty_property_element(self, element):
+    def parse_empty_property_element(self, ns, element):
         """7.2.21: http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
         emptyPropertyElt:
@@ -239,6 +247,8 @@ class RDFXML(object):
                 attributes == set(idAttr?, ( resourceAttr | nodeIdAttr )?, propertyAttr*))
             end-element()
         """
+
+        ns = Namespaces(ns, element)
 
         resource_uri = element.getAttributeNS(RDF_NS, 'resource')
         node_id = element.getAttributeNS(RDF_NS, 'nodeID')
@@ -257,7 +267,7 @@ class RDFXML(object):
 
         # TODO: parse propertyAttr
 
-        repr = domrepr.Repr(domrepr.EmptyProperty(self.root.doc, element))
+        repr = domrepr.Repr(domrepr.EmptyProperty(self.doc, element, ns))
 
         if node is not None:
             node.reprs.append(repr)
@@ -270,6 +280,102 @@ class RDFXML(object):
             return model.PredicateLiteral(
                 self.root, repr, get_element_uri(element), node)
             
+
+class Namespaces(object):
+    """Keep track of namespaces scope for each element
+    and update it as necessary.
+    """
+
+    def __init__(self, parent, element):
+        attrs = element.attributes
+        assert attrs is not None, 'trying to track namespaces for non-element node'
+
+        self.parent = parent
+        self.element = element
+        self.uri_prefix_map = {}
+
+        if parent is None:
+            # Grab everything up to root
+            self._populate(element, None)
+        else:
+            # Grab everything up to parent element
+            self._populate(element, parent.element)
+
+
+    def _populate(self, element, stop_element):
+        # Passed the root?
+        if element.nodeType == element.DOCUMENT_NODE:
+            return
+
+        # Reach the parent?
+        if element is stop_element:
+            return
+        
+        # Recurse first, so that we overwrite anything added further below
+        self._populate(element.parentNode, stop_element)
+
+        attrs = element.attributes
+        if attrs is None:
+            return
+
+        # Add all attributes
+        for (name, value) in attrs.items():
+            if name.startswith('xmlns:'):
+                self.uri_prefix_map[value] = name[6:]
+            elif name == 'xmlns':
+                self.uri_prefix_map[value] = None
+                
+                
+    def get_prefix(self, uri, preferred_prefix):
+        """Return a prefix for URI in the current scope.
+
+        If the URI is not known, it is added, using preferred_prefix
+        if available.
+
+        If None is returned, the URI is the default.
+        """
+        
+        assert preferred_prefix, 'prefix must be non-empty'
+
+        try:
+            return self.uri_prefix_map[uri]
+        except KeyError:
+            pass
+
+
+        # Recurse if we have a parent
+        if self.parent:
+            prefix = self.parent.get_prefix(uri, preferred_prefix)
+
+            # If this prefix already in use for something else in this
+            # scope, we must redefine the namespace here
+
+            new_prefix = self._check_prefix(prefix)
+            if new_prefix != prefix:
+                prefix = new_prefix
+                self.uri_prefix_map[uri] = prefix
+                self.element.setAttribute('xmlns:' + prefix, uri)
+            
+            return prefix
+
+        else:
+            # Reached root, so add namespace to this scope and element
+            prefix = self._check_prefix(preferred_prefix)
+            self.uri_prefix_map[uri] = prefix
+            self.element.setAttribute('xmlns:' + prefix, uri)
+            return prefix
+
+
+    def _check_prefix(self, preferred_prefix):
+        prefix = preferred_prefix
+        c = 1
+        while prefix in self.uri_prefix_map.itervalues():
+            c += 1
+            prefix = preferred_prefix + str(c)
+
+        return prefix
+            
+
 
 def iter_subelements(element):
     """Return an iterator over all child nodes that are elements"""

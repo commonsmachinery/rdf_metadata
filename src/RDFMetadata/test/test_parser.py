@@ -1,5 +1,7 @@
 # test_parser - Test parsing RDF/XML into model objects
 #
+# See also test_namespaces.py.
+#
 # Copyright 2013 Commons Machinery http://commonsmachinery.se/
 #
 # Authors: Peter Liljenberg <peter@commonsmachinery.se>
@@ -9,14 +11,14 @@
 import unittest
 from xml.dom import minidom
 
-from .. import model, domrepr
+from .. import parser, model, domrepr
 
 def get_root(xml):
-    """Test helper function: parse XML and return an RDFRoot from the
+    """Test helper function: parse XML and return a model.Root from the
     XML root element.
     """
     doc = minidom.parseString(xml)
-    return model.Root(doc = doc, root_element = doc.documentElement)
+    return parser.parse_RDFXML(doc = doc, root_element = doc.documentElement)
 
 
 class TestEmptyRDF(unittest.TestCase):
@@ -25,18 +27,16 @@ class TestEmptyRDF(unittest.TestCase):
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 </rdf:RDF>
 ''')
-        self.assertTrue(r.root_element_is_rdf)
+        self.assertTrue(r.repr.root_element_is_rdf)
         self.assertEqual(len(r), 0)
 
-        # The ugly RDF prefix hack
-        self.assertEqual(r.rdf_prefix, 'rdf')
 
     def test_meta_element(self):
         r = get_root('''<?xml version="1.0"?>
 <meta>
 </meta>
 ''')
-        self.assertFalse(r.root_element_is_rdf)
+        self.assertFalse(r.repr.root_element_is_rdf)
         self.assertEqual(len(r), 0)
 
         

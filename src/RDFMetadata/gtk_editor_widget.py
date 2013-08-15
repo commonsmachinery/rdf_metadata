@@ -142,16 +142,18 @@ class MetadataEditor(object):
 
         
     def _on_print_xml_clicked(self, btn):
-        self.root.element.writexml(sys.stdout)
+        self.root.repr.element.writexml(sys.stdout)
 
 
     def _on_value_edited(self, render, path, text):
         i = self.tree_store.get_iter(path)
-        obj = self.tree_store[i][0]
+        node = self.tree_store[i][0]
 
-        if isinstance(obj, model.Predicate):
-            obj.set_value(text)
+        if isinstance(node, model.Predicate):
+            obj = node.object
+            if isinstance(obj, model.LiteralNode):
+                obj.set_value(text)
 
-        # TODO: this should be changed on callbacks from the domrepr layer
-        self.tree_store[i][2] = text
+                # TODO: this should be changed on callbacks from the domrepr layer
+                self.tree_store[i][2] = text
 
