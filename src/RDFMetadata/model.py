@@ -10,10 +10,20 @@
 underlying RDF/XML.
 """
 
+
 import collections
 import uuid
 
-class Root(collections.Mapping):
+from . import event
+
+#
+# Model events
+#
+
+class AddPredicate(event.Event): pass
+
+
+class Root(event.EventSource, collections.Mapping):
     def __init__(self, repr):
         super(Root, self).__init__()
 
@@ -100,6 +110,10 @@ class QName(URI):
         self.ns_uri = ns_uri
         self.ns_prefix = ns_prefix
         self.local_name = local_name
+        if ns_prefix:
+            self.tag_name = ns_prefix + ':' + local_name
+        else:
+            self.tag_name = local_name
         super(QName, self).__init__(ns_uri + local_name)
 
 
@@ -119,6 +133,7 @@ class NodeID(URI):
 
 class Node(object):
     def __init__(self, root):
+        super(Node, self).__init__()
         self.root = root
 
 
@@ -131,13 +146,24 @@ class SubjectNode(Node, collections.Sequence):
         self.reprs = []
         self.predicates = []
         
+    def add_repr(self, repr):
+        assert repr not in self.reprs
+        self.reprs.append(repr)
 
-    def set_type(self, type_uri):
-        pass
+    def add_predicate(self, pred):
+        assert isinstance(pred, Predicate)
+        assert pred not in self.predicates
+        self.predicates.append(pred)
 
-    def set_uri(self, uri):
-        # TODO
-        pass
+        self.root.signal_event(AddPredicate, self, pred)
+
+
+    def add_literal_node(self, qname, value = '', type_uri = None):
+        # This must be true, right?
+        assert self.reprs
+
+        self.reprs[0].add_literal_node(self, qname, value, type_uri)
+
 
     def __str__(self):
         s = '# {0}({1})\n'.format(self.__class__.__name__, self.uri)
@@ -160,6 +186,7 @@ class SubjectNode(Node, collections.Sequence):
 
     def __len__(self):
         return len(self.predicates)
+
 
 
 class ResourceNode(SubjectNode):

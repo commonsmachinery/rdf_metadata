@@ -11,7 +11,6 @@ from gi.repository import Gtk
 
 from . import model
 
-
 class MetadataEditor(object):
     def __init__(self, root):
         self.widget = Gtk.Box(
@@ -20,6 +19,8 @@ class MetadataEditor(object):
 
         self.root = root
 
+        self.root.connect_event(model.AddPredicate(self._on_model_add_predicate))
+
         #
         # Control toolbar
         #
@@ -27,15 +28,17 @@ class MetadataEditor(object):
         self.toolbar = Gtk.Toolbar()
         self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)
 
-#         self.add_property_toolbtn = Gtk.ToolButton(
-#             Gtk.STOCK_ADD, label = 'Add property')
-#         self.add_property_toolbtn.connect('clicked', self._on_add_clicked)
-#         self.toolbar.insert(self.add_property_toolbtn, -1)
-# 
-        self.print_xml_toolbtn = Gtk.ToolButton(
-            None, label = 'Print XML')
-        self.print_xml_toolbtn.connect('clicked', self._on_print_xml_clicked)
-        self.toolbar.insert(self.print_xml_toolbtn, -1)
+        self.expand_all_btn = self._add_toolbtn(
+            'Expand all', Gtk.STOCK_ZOOM_IN, True, self._on_expand_all)
+
+        self.collapse_all_btn = self._add_toolbtn(
+            'Collapse all', Gtk.STOCK_ZOOM_OUT, True, self._on_collapse_all)
+
+        self.print_xml_btn = self._add_toolbtn(
+            'Print XML', None, True, self._on_print_xml)
+
+        self.add_property_btn = self._add_toolbtn(
+            'Add property', Gtk.STOCK_ADD, False, self._on_add_property)
 
         self.widget.pack_start(self.toolbar, False, False, 0)
 
@@ -82,8 +85,18 @@ class MetadataEditor(object):
 
         self.tree_view.expand_all()
         
+        self.tree_view.get_selection().connect(
+            'changed', self._on_tree_selection_changed)
+
         self.widget.pack_start(self.tree_view, True, True, 0)
 
+
+    def _add_toolbtn(self, label, stock, enabled, action):
+        btn = Gtk.ToolButton(stock, label = label, sensitive = enabled)
+        btn.connect('clicked', action)
+        self.toolbar.insert(btn, -1)
+        return btn
+    
 
     def _add_resource_to_tree(self, res, pos = None):
         if res.uri:
@@ -136,13 +149,78 @@ class MetadataEditor(object):
                 for node_pred in node:
                     self._add_predicate_to_tree(node_pred, i)
 
-        
-    def _on_add_clicked(self, btn):
-        pass
+        return i
 
         
-    def _on_print_xml_clicked(self, btn):
+    def _lookup_tree_object(self, obj, start_iter = None):
+        if start_iter is None:
+            i = self.tree_store.get_iter_first()
+        else:
+            i = start_iter
+
+        while i is not None:
+            o = self.tree_store[i][0]
+            if (o is obj or
+                (isinstance(o, model.Predicate) and o.object is obj)):
+                return i
+
+            if self.tree_store.iter_has_child(i):
+                o = self._lookup_tree_object(obj, self.tree_store.iter_children(i))
+                if o is not None:
+                    return o
+
+            i = self.tree_store.iter_next(i)
+
+        return None
+    
+
+    def _on_tree_selection_changed(self, selection):
+        tree_model, tree_iter = selection.get_selected()
+        if tree_iter:
+            obj = tree_model[tree_iter][0]
+        else:
+            obj = None
+
+        self.add_property_btn.set_sensitive(
+            isinstance(obj, model.SubjectNode) or
+            (isinstance(obj, model.Predicate)
+             and isinstance(obj.object, model.BlankNode))
+            )
+
+
+    def _on_expand_all(self, btn):
+        self.tree_view.expand_all()
+
+
+    def _on_collapse_all(self, btn):
+        self.tree_view.collapse_all()
+        
+
+    def _on_print_xml(self, btn):
         self.root.repr.element.writexml(sys.stdout)
+
+
+    def _on_add_property(self, btn):
+        tree_model, tree_iter = self.tree_view.get_selection().get_selected()
+        assert tree_iter is not None
+
+        obj = self.tree_store[tree_iter][0]
+
+        if isinstance(obj, model.SubjectNode):
+            pass
+        elif (isinstance(obj, model.Predicate)
+              and isinstance(obj.object, model.SubjectNode)):
+            obj = obj.object
+        else:
+            assert False, 'attempting to add property to a non-SubjectNode'
+
+        # Make sure the row is expanded
+        path = self.tree_store.get_path(tree_iter)
+        self.tree_view.expand_row(path, False)
+
+        obj.add_literal_node(
+            model.QName('http://test/', 'test', 'Test'),
+            'new value', 'http://test/type')
 
 
     def _on_value_edited(self, render, path, text):
@@ -157,3 +235,9 @@ class MetadataEditor(object):
                 # TODO: this should be changed on callbacks from the domrepr layer
                 self.tree_store[i][2] = text
 
+                                
+    def _on_model_add_predicate(self, evt, source, predicate):
+        tree_iter = self._lookup_tree_object(source)
+
+        i = self._add_predicate_to_tree(predicate, tree_iter)
+        self.tree_view.get_selection().select_iter(i)

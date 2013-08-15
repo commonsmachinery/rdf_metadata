@@ -9,6 +9,9 @@
 import sys
 import xml.dom
 
+from . import model, namespaces
+
+
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 
 
@@ -22,6 +25,8 @@ class Root(object):
     """
 
     def __init__(self, doc, element, namespaces, root_element_is_rdf):
+        super(Root, self).__init__()
+        
         self.doc = doc
         self.element = element
         self.namespaces = namespaces
@@ -32,6 +37,9 @@ class Root(object):
     def get_ns_prefix(self, uri, preferred_prefix):
         return self.repr.namespaces.get_prefix(uri, preferred_prefix)
 
+    def dump(self):
+        self.element.writexml(sys.stderr)
+
 
 class Repr(object):
     """Intermediate object for the representation of a node.
@@ -41,6 +49,7 @@ class Repr(object):
     """
 
     def __init__(self, repr):
+        super(Repr, self).__init__()
         self.repr = repr
 
     def get_ns_prefix(self, uri, preferred_prefix):
@@ -55,12 +64,17 @@ class Repr(object):
     def set_datatype(self, type_uri):
         self.repr = self.repr.set_datatype(type_uri)
 
+    def add_literal_node(self, node, qname, value, type_uri):
+        self.repr = self.repr.add_literal_node(node, qname, value, type_uri)
+
     def dump(self):
         self.repr.element.writexml(sys.stderr)
-        
+
 
 class TypedRepr(object):
     def __init__(self, doc, element, namespaces):
+        super(TypedRepr, self).__init__()
+        
         self.doc = doc
         self.element = element
         self.namespaces = namespaces
@@ -74,20 +88,104 @@ class TypedRepr(object):
     def set_datatype(self, type_uri):
         raise UnsupportedFunctionError('set_datatype', self)
 
+    def add_literal_node(self, node, qname, value, type_uri):
+        raise UnsupportedFunctionError('add_literal_node', self)
+
     def get_rdf_ns_prefix(self):
         return self.namespaces.get_prefix(RDF_NS, 'rdf')
 
-class DescriptionNode(TypedRepr):
+    def add_namespace(self, qname):
+        prefix = self.namespaces.get_prefix(qname.ns_uri, qname.ns_prefix)
+        if prefix == qname.ns_prefix:
+            return qname
+        else:
+            return model.QName(qname.ns_uri, prefix, qname.local_name)
+
+
+class ElementNode(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
+
+    Not instantiated directly.
+    """
+    
+    def add_literal_node(self, node, qname, value, type_uri):
+        assert isinstance(node, model.SubjectNode)
+        
+        # Build XML:
+        # <ns:name rdf:datatype="type_uri">value</ns:name>
+
+        qname = self.add_namespace(qname)
+        element = self.doc.createElementNS(qname.ns_uri, qname.tag_name)
+
+        if type_uri:
+            element.setAttributeNS(
+                RDF_NS, self.get_rdf_ns_prefix() + ':datatype',
+                type_uri)
+
+        if value:
+            element.appendChild(self.doc.createTextNode(value))
+            repr_cls = LiteralProperty
+        else:
+            repr_cls = EmptyProperty
+
+        self.element.appendChild(element)
+
+        repr = Repr(repr_cls(self.doc, element,
+                             namespaces.Namespaces(self.namespaces, element)))
+
+        # Create predicate and add to node
+        lit_node = model.LiteralNode(node.root, repr, value, type_uri)
+        pred = model.PredicateLiteral(node.root, repr, qname, lit_node)
+        node.add_predicate(pred)
+
+        return self
+
+
+class DescriptionNode(ElementNode):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
+    (when the name is rdf:Description)
+
+    Represents:
+
+      - ResourceNode (without rdf:nodeID)
+      - BlankNode (with rdf:nodeID)
+    """
     pass
 
-class TypedNode(TypedRepr):
+
+class TypedNode(ElementNode):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
+    (when the name is NOT rdf:Description)
+
+    Represents:
+
+      - ResourceNode (without rdf:nodeID)
+      - BlankNode (with rdf:nodeID)
+      - Predicate (for the generated rdf:type predicate)
+      - ResourceNode (for the generated rdf:type object)
+    """
     pass
+
 
 class ResourceProperty(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#resourcePropertyElt
+
+    Represents:
+
+      - Predicate
+    """
     pass
 
 
 class LiteralProperty(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#literalPropertyElt
+
+    Represents:
+
+      - Predicate (always)
+      - LiteralNode (always)
+    """
+
     def set_datatype(self, type_uri):
         # Remove old first, then add new if still set
         try:
@@ -121,6 +219,15 @@ class LiteralProperty(TypedRepr):
 
 
 class EmptyProperty(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
+
+    Represents:
+
+      - Predicate (always)
+      - ResourceNode (with rdf:resource)
+      - BlankNode (with rdf:nodeID)
+      - LiteralNode (without either)
+    """
     def set_literal_value(self, text):
         if text:
             # Since it will no longer be empty, change to a LiteralProperty instead

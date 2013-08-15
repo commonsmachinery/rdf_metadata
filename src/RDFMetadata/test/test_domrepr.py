@@ -142,3 +142,72 @@ class TestLiteralNode(CommonTest):
         xp.assertValue("set again", "/rdf:RDF/rdf:Description/dc:title")
         xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
         
+
+class TestElementNode(CommonTest):
+    def test_add_empty_literal_node(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        res = r['']
+        self.assertEqual(len(res), 0)
+
+        res.add_literal_node(
+            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
+
+        # Check that model updated
+        self.assertEqual(len(res), 1)
+        pred = res[0]
+        self.assertPredicate(pred, "http://purl.org/dc/elements/1.1/title",
+                             model.LiteralNode, domrepr.EmptyProperty)
+        obj = pred.object
+        
+        self.assertEqual(obj.value, '')
+        self.assertIsNone(obj.type_uri)
+
+        # Check that XML updated
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:title")
+        xp.assertValue('', "/rdf:RDF/rdf:Description/dc:title")
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
+        
+
+    def test_add_non_empty_literal_node(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        res = r['']
+        self.assertEqual(len(res), 0)
+
+        res.add_literal_node(
+            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
+            "value", "test:type")
+
+        # Check that model updated
+        self.assertEqual(len(res), 1)
+        pred = res[0]
+        self.assertPredicate(pred, "http://purl.org/dc/elements/1.1/title",
+                             model.LiteralNode, domrepr.LiteralProperty)
+        obj = pred.object
+        
+        self.assertEqual(obj.value, 'value')
+        self.assertEqual(obj.type_uri, 'test:type')
+
+        # Check that XML updated
+        xp = XPathAsserts(self, r.repr.element)
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:title")
+        xp.assertValue('value', "/rdf:RDF/rdf:Description/dc:title")
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
+        xp.assertValue('test:type', "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
+        
+        
