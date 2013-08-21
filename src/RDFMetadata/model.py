@@ -14,16 +14,16 @@ underlying RDF/XML.
 import collections
 import uuid
 
-from . import event
+from . import observer
 
 #
 # Model events
 #
 
-class AddPredicate(event.Event): pass
+class AddPredicate(observer.Event): pass
 
 
-class Root(event.EventSource, collections.Mapping):
+class Root(observer.Subject, collections.Mapping):
     def __init__(self, repr):
         super(Root, self).__init__()
 
@@ -155,7 +155,7 @@ class SubjectNode(Node, collections.Sequence):
         assert pred not in self.predicates
         self.predicates.append(pred)
 
-        self.root.signal_event(AddPredicate, self, pred)
+        self.root.notify_observers(AddPredicate(node = self, predicate = pred))
 
 
     def add_literal_node(self, qname, value = '', type_uri = None):

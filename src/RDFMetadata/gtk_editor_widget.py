@@ -19,7 +19,7 @@ class MetadataEditor(object):
 
         self.root = root
 
-        self.root.connect_event(model.AddPredicate(self._on_model_add_predicate))
+        self.root.register_observer(self._model_observer)
 
         #
         # Control toolbar
@@ -236,8 +236,8 @@ class MetadataEditor(object):
                 self.tree_store[i][2] = text
 
                                 
-    def _on_model_add_predicate(self, evt, source, predicate):
-        tree_iter = self._lookup_tree_object(source)
-
-        i = self._add_predicate_to_tree(predicate, tree_iter)
-        self.tree_view.get_selection().select_iter(i)
+    def _model_observer(self, event):
+        if isinstance(event, model.AddPredicate):
+            tree_iter = self._lookup_tree_object(event.node)
+            i = self._add_predicate_to_tree(event.predicate, tree_iter)
+            self.tree_view.get_selection().select_iter(i)
