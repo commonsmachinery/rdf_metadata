@@ -112,11 +112,11 @@
             <dc:format>image/svg+xml</dc:format>
             <dc:type
                rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-            <dc:title>Title text added with Inkscape</dc:title>
-            <dc:date>20130820</dc:date>
+            <dc:title>PATH Title text added with Inkscape</dc:title>
+            <dc:date>PATH 20130820</dc:date>
             <dc:creator>
               <cc:Agent>
-                <dc:title>Christoffer</dc:title>
+                <dc:title>PATH Christoffer</dc:title>
               </cc:Agent>
             </dc:creator>
           </cc:Work>
@@ -138,11 +138,11 @@
             <dc:format>image/svg+xml</dc:format>
             <dc:type
                rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-            <dc:title>SVG Object Title text added with Inkscape</dc:title>
-            <dc:date>SVG Object 20130820</dc:date>
+            <dc:title>RECT Title text added with Inkscape</dc:title>
+            <dc:date>RECT 20130820</dc:date>
             <dc:creator>
               <cc:Agent>
-                <dc:title>SVG Object Christoffer</dc:title>
+                <dc:title>RECT Christoffer</dc:title>
               </cc:Agent>
             </dc:creator>
           </cc:Work>
