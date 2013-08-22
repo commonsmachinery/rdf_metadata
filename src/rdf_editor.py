@@ -18,12 +18,19 @@ from RDFMetadata import parser, gtk_editor_widget
 from xml.dom import minidom
 
 class MainWindow(Gtk.Window):
-    def __init__(self, root):
+    def __init__(self, model_root_list):
         super(MainWindow, self).__init__(title = 'RDF Metadata Editor')
 
-        self.editor = gtk_editor_widget.MetadataEditor(root)
-        self.add(self.editor.widget)
-        
+        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list)
+        self.editor = gtk_editor_widget.MetadataEditor(model_root_list[0])
+
+        self.paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
+        self.paned.set_position(200)
+        self.paned.add1(self.svglist.widget)
+        self.paned.add2(self.editor.widget)
+        self.add(self.paned)
+        # self.add(self.editor.widget)
+
 def main():
     doc = minidom.parse(sys.stdin)
 
@@ -32,15 +39,16 @@ def main():
 
     if not rdfs:
         sys.exit('no RDF found')
-    
-    # For now just use the first one
-    root = parser.parse_RDFXML(doc = doc, root_element = rdfs[0])
 
-    win = MainWindow(root)
+    # Parse all RDF nodes available
+    model_root_list = []
+    for rdf in rdfs:
+        model_root_list.append(parser.parse_RDFXML(doc = doc, root_element = rdf))
+
+    win = MainWindow(model_root_list)
     win.connect("delete-event", Gtk.main_quit)
     win.show_all()
     Gtk.main()
 
 if __name__ == '__main__':
     main()
-    

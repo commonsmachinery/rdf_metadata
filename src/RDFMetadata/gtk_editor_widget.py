@@ -11,6 +11,28 @@ from gi.repository import Gtk
 
 from . import model
 
+class SVGNodeList(object):
+    def __init__(self, model_root_list):
+        self.widget = Gtk.Box(
+            spacing = 0,
+            orientation = Gtk.Orientation.HORIZONTAL)
+
+        self.liststore = Gtk.ListStore(str, str, int)
+        i = 0 # Just for differentiating values now. Can be removed one proper name is displayed
+        for model_root  in model_root_list:
+            i = i + 1
+            self.liststore.append(["SVG Node " + str(i), "tooltip" + str(i), i])
+
+        self.treeview = Gtk.TreeView(self.liststore)
+        self.treeview.set_tooltip_column(1)
+
+        render = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("SVG Nodes", render, text = 0)
+        column.set_sort_column_id(0)
+        self.treeview.append_column(column)
+
+        self.widget.pack_start(self.treeview, True, True, 0)
+
 class MetadataEditor(object):
     def __init__(self, root):
         self.widget = Gtk.Box(
@@ -24,7 +46,7 @@ class MetadataEditor(object):
         #
         # Control toolbar
         #
-        
+
         self.toolbar = Gtk.Toolbar()
         self.toolbar.set_style(Gtk.ToolbarStyle.BOTH)
 
