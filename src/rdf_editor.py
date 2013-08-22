@@ -30,6 +30,7 @@ class MainWindow(Gtk.Window):
         # keep track of which metadata_editor to show.
         self.svglist = gtk_editor_widget.SVGNodeList(model_root_list, self.paned)
 
+        self.set_default_size(600, 600)
 
 def main():
     doc = minidom.parse(sys.stdin)

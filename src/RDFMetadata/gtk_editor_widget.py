@@ -30,7 +30,6 @@ class SVGNodeList(object):
         for model_root in model_root_list:
             i = i + 1
             metadata_editor = MetadataEditor(model_root)
-            # metadata_editor.root.repr.dump()
             self.liststore.append([metadata_editor, "SVG Node " + str(i), "tooltip" + str(i)])
             self.metadata_editor_list.append(metadata_editor)
 
@@ -46,8 +45,6 @@ class SVGNodeList(object):
 
         # Populate the main paned window
         self.paned.add1(self.widget)
-        self.paned.add2(self.metadata_editor_list[0].widget)
-        self.active_metadata_editor = self.metadata_editor_list[0]
 
         # Connect events
         self.treeview.get_selection().connect(
@@ -55,19 +52,19 @@ class SVGNodeList(object):
 
 
     def _on_svg_node_list_changed(self, selection):
-
         tree_model, tree_iter = selection.get_selected()
         if tree_iter:
-            selected_model_root = tree_model[tree_iter][0].root
+            selected_metadata_editor = tree_model[tree_iter][0]
         else:
-            selected_model_root = None
+            selected_metadata_editor = None
 
-        self.paned.remove(self.active_metadata_editor.widget)
+        if self.paned.get_child2() != None:
+            self.paned.remove(self.paned.get_child2())
+
         for metadata_editor in self.metadata_editor_list:
-            if metadata_editor.root == selected_model_root:
-                self.active_metadata_editor = metadata_editor
-        self.paned.add2(self.active_metadata_editor.widget)
-        self.active_metadata_editor.widget.show()
+            if metadata_editor == selected_metadata_editor:
+                self.paned.add2(metadata_editor.widget)
+                self.paned.show_all()
 
 
 class MetadataEditor(object):
