@@ -21,15 +21,15 @@ class MainWindow(Gtk.Window):
     def __init__(self, model_root_list):
         super(MainWindow, self).__init__(title = 'RDF Metadata Editor')
 
-        self.editor = gtk_editor_widget.MetadataEditor(model_root_list[0])
-        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list, self.editor)
-
         self.paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
         self.paned.set_position(200)
-        self.paned.add1(self.svglist.widget)
-        self.paned.add2(self.editor.widget)
         self.add(self.paned)
-        # self.add(self.editor.widget)
+
+        self.editor = gtk_editor_widget.MetadataEditor(model_root_list[0])
+        # Pass the self.paned object along to SVGNodeList to let it
+        # keep track of which metadata_editor to show.
+        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list, self.paned)
+
 
 def main():
     doc = minidom.parse(sys.stdin)

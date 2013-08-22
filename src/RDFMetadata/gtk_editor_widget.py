@@ -12,22 +12,27 @@ from gi.repository import Gtk
 from . import model
 
 class SVGNodeList(object):
-    def __init__(self, model_root_list, metadata_editor):
+    def __init__(self, model_root_list, main_pane):
         self.widget = Gtk.Box(
             spacing = 0,
             orientation = Gtk.Orientation.HORIZONTAL)
 
-        self.metadata_editor = metadata_editor
+        self.paned = main_pane
+        self.metadata_editor_list = []
 
-        # Tree store columns:
+        # self.paned.add2(self.editor.widget)
+
+        # Liststore columns:
         # 0: model.Root object
         # 1: Name to be displayed
         # 2: Tooltip string
         self.liststore = Gtk.ListStore(object, str, str)
         i = 0 # Just for differentiating values now. Can be removed one proper name is displayed
-        for model_root  in model_root_list:
+        for model_root in model_root_list:
             i = i + 1
             self.liststore.append([model_root, "SVG Node " + str(i), "tooltip" + str(i)])
+            self.metadata_editor_list.append(MetadataEditor(model_root))
+            print "test"
 
         self.treeview = Gtk.TreeView(self.liststore)
         self.treeview.set_tooltip_column(2)
@@ -39,21 +44,31 @@ class SVGNodeList(object):
 
         self.widget.pack_start(self.treeview, True, True, 0)
 
+        # Populate the main paned window
+        self.paned.add1(self.widget)
+        self.paned.add2(self.metadata_editor_list[0].widget)
+        self.active_metadata_editor = self.metadata_editor_list[0]
+
         # Connect events
         self.treeview.get_selection().connect(
             'changed', self._on_svg_node_list_changed)
 
 
     def _on_svg_node_list_changed(self, selection):
+
         tree_model, tree_iter = selection.get_selected()
         if tree_iter:
             selected_model_root = tree_model[tree_iter][0]
         else:
             selected_model_root = None
 
-        self.metadata_editor.tree_store.clear()
-        self.metadata_editor._populate_tree_store(selected_model_root)
-        # self.metadata_editor.root = selected_model_root
+        self.paned.remove(self.active_metadata_editor.widget)
+        for metadata_editor in self.metadata_editor_list:
+            if metadata_editor.root == selected_model_root:
+                self.active_metadata_editor = metadata_editor
+        self.paned.add2(self.active_metadata_editor.widget)
+        self.active_metadata_editor.widget.show()
+
 
 class MetadataEditor(object):
     def __init__(self, root):
