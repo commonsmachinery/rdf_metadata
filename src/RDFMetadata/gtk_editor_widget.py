@@ -20,19 +20,19 @@ class SVGNodeList(object):
         self.paned = main_pane
         self.metadata_editor_list = []
 
-        # self.paned.add2(self.editor.widget)
-
         # Liststore columns:
-        # 0: model.Root object
+        # 0: MetadataEditor object
         # 1: Name to be displayed
         # 2: Tooltip string
         self.liststore = Gtk.ListStore(object, str, str)
+
         i = 0 # Just for differentiating values now. Can be removed one proper name is displayed
         for model_root in model_root_list:
             i = i + 1
-            self.liststore.append([model_root, "SVG Node " + str(i), "tooltip" + str(i)])
-            self.metadata_editor_list.append(MetadataEditor(model_root))
-            print "test"
+            metadata_editor = MetadataEditor(model_root)
+            # metadata_editor.root.repr.dump()
+            self.liststore.append([metadata_editor, "SVG Node " + str(i), "tooltip" + str(i)])
+            self.metadata_editor_list.append(metadata_editor)
 
         self.treeview = Gtk.TreeView(self.liststore)
         self.treeview.set_tooltip_column(2)
@@ -58,7 +58,7 @@ class SVGNodeList(object):
 
         tree_model, tree_iter = selection.get_selected()
         if tree_iter:
-            selected_model_root = tree_model[tree_iter][0]
+            selected_model_root = tree_model[tree_iter][0].root
         else:
             selected_model_root = None
 
