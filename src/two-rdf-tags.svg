@@ -123,31 +123,5 @@
         </rdf:RDF>
       </metadata>
     </path>
-    <rect
-       style="fill:#ff6600;fill-opacity:1;stroke:#ff6600;stroke-width:2;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none"
-       id="rect10-5"
-       width="178.59431"
-       height="220.84242"
-       x="296.69699"
-       y="62.411995">
-      <metadata
-         id="metadata7-5">
-        <rdf:RDF>
-          <cc:Work
-             rdf:about="">
-            <dc:format>image/svg+xml</dc:format>
-            <dc:type
-               rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-            <dc:title>SVG Object Title text added with Inkscape</dc:title>
-            <dc:date>SVG Object 20130820</dc:date>
-            <dc:creator>
-              <cc:Agent>
-                <dc:title>SVG Object Christoffer</dc:title>
-              </cc:Agent>
-            </dc:creator>
-          </cc:Work>
-        </rdf:RDF>
-      </metadata>
-    </rect>
   </g>
 </svg>
