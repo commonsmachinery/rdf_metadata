@@ -21,8 +21,8 @@ class MainWindow(Gtk.Window):
     def __init__(self, model_root_list):
         super(MainWindow, self).__init__(title = 'RDF Metadata Editor')
 
-        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list)
         self.editor = gtk_editor_widget.MetadataEditor(model_root_list[0])
+        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list, self.editor)
 
         self.paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
         self.paned.set_position(200)

@@ -12,26 +12,48 @@ from gi.repository import Gtk
 from . import model
 
 class SVGNodeList(object):
-    def __init__(self, model_root_list):
+    def __init__(self, model_root_list, metadata_editor):
         self.widget = Gtk.Box(
             spacing = 0,
             orientation = Gtk.Orientation.HORIZONTAL)
 
-        self.liststore = Gtk.ListStore(str, str, int)
+        self.metadata_editor = metadata_editor
+
+        # Tree store columns:
+        # 0: model.Root object
+        # 1: Name to be displayed
+        # 2: Tooltip string
+        self.liststore = Gtk.ListStore(object, str, str)
         i = 0 # Just for differentiating values now. Can be removed one proper name is displayed
         for model_root  in model_root_list:
             i = i + 1
-            self.liststore.append(["SVG Node " + str(i), "tooltip" + str(i), i])
+            self.liststore.append([model_root, "SVG Node " + str(i), "tooltip" + str(i)])
 
         self.treeview = Gtk.TreeView(self.liststore)
-        self.treeview.set_tooltip_column(1)
+        self.treeview.set_tooltip_column(2)
 
         render = Gtk.CellRendererText()
-        column = Gtk.TreeViewColumn("SVG Nodes", render, text = 0)
-        column.set_sort_column_id(0)
+        column = Gtk.TreeViewColumn("SVG Nodes", render, text = 1)
+        column.set_sort_column_id(1)
         self.treeview.append_column(column)
 
         self.widget.pack_start(self.treeview, True, True, 0)
+
+        # Connect events
+        self.treeview.get_selection().connect(
+            'changed', self._on_svg_node_list_changed)
+
+
+    def _on_svg_node_list_changed(self, selection):
+        tree_model, tree_iter = selection.get_selected()
+        if tree_iter:
+            selected_model_root = tree_model[tree_iter][0]
+        else:
+            selected_model_root = None
+
+        self.metadata_editor.tree_store.clear()
+        self.metadata_editor._populate_tree_store(selected_model_root)
+        # self.metadata_editor.root = selected_model_root
 
 class MetadataEditor(object):
     def __init__(self, root):
@@ -77,16 +99,7 @@ class MetadataEditor(object):
 
         self.added_to_tree_store = set()
 
-        # Always start with the default resource, if it exists
-        res = root.get("")
-        if res:
-            self._add_resource_to_tree(res)
-
-        # Add the rest
-        for res in root.itervalues():
-            if res.uri != "":
-                self._add_resource_to_tree(res)
-
+        self._populate_tree_store(root)
 
         # Set up display of the tree
         self.tree_view = Gtk.TreeView(self.tree_store)
@@ -106,19 +119,29 @@ class MetadataEditor(object):
         self.tree_view.append_column(column)
 
         self.tree_view.expand_all()
-        
+
         self.tree_view.get_selection().connect(
             'changed', self._on_tree_selection_changed)
 
         self.widget.pack_start(self.tree_view, True, True, 0)
 
+    def _populate_tree_store(self, root):
+        # Always start with the default resource, if it exists
+        res = root.get("")
+        if res:
+            self._add_resource_to_tree(res)
+
+        # Add the rest
+        for res in root.itervalues():
+            if res.uri != "":
+                self._add_resource_to_tree(res)
 
     def _add_toolbtn(self, label, stock, enabled, action):
         btn = Gtk.ToolButton(stock, label = label, sensitive = enabled)
         btn.connect('clicked', action)
         self.toolbar.insert(btn, -1)
         return btn
-    
+
 
     def _add_resource_to_tree(self, res, pos = None):
         if res.uri:
@@ -173,7 +196,7 @@ class MetadataEditor(object):
 
         return i
 
-        
+
     def _lookup_tree_object(self, obj, start_iter = None):
         if start_iter is None:
             i = self.tree_store.get_iter_first()
@@ -194,7 +217,7 @@ class MetadataEditor(object):
             i = self.tree_store.iter_next(i)
 
         return None
-    
+
 
     def _on_tree_selection_changed(self, selection):
         tree_model, tree_iter = selection.get_selected()
@@ -216,7 +239,7 @@ class MetadataEditor(object):
 
     def _on_collapse_all(self, btn):
         self.tree_view.collapse_all()
-        
+
 
     def _on_print_xml(self, btn):
         self.root.repr.element.writexml(sys.stdout)
@@ -257,7 +280,7 @@ class MetadataEditor(object):
                 # TODO: this should be changed on callbacks from the domrepr layer
                 self.tree_store[i][2] = text
 
-                                
+
     def _model_observer(self, event):
         if isinstance(event, model.AddPredicate):
             tree_iter = self._lookup_tree_object(event.node)
