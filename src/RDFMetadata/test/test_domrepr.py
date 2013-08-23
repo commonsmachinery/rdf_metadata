@@ -114,7 +114,7 @@ class TestLiteralNode(CommonTest):
         self.assertEqual(obj.type_uri, 'test:type')
 
         # New repr, no value
-        self.assertRepr(obj, domrepr.EmptyProperty)
+        self.assertRepr(obj, domrepr.EmptyPropertyLiteral)
         xp.assertValue("", "/rdf:RDF/rdf:Description/dc:title")
         xp.assertValue("test:type", "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
 
@@ -165,7 +165,7 @@ class TestElementNode(CommonTest):
         self.assertEqual(len(res), 1)
         pred = res[0]
         self.assertPredicate(pred, "http://purl.org/dc/elements/1.1/title",
-                             model.LiteralNode, domrepr.EmptyProperty)
+                             model.LiteralNode, domrepr.EmptyPropertyLiteral)
         obj = pred.object
         
         self.assertEqual(obj.value, '')

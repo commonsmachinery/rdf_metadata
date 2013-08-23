@@ -11,7 +11,7 @@
 import unittest
 from xml.dom import minidom
 
-from .. import parser, model, domrepr
+from .. import parser, model, domrepr, observer
 
 def get_root(xml):
     """Test helper function: parse XML and return a model.Root from the
@@ -129,7 +129,7 @@ class TestTopLevelResource(unittest.TestCase):
         self.assertEqual(pred.uri, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
 
         # But it's representation is the cc:Work node
-        self.assertIsInstance(pred.repr.repr, domrepr.TypedNode)
+        self.assertIsInstance(pred.repr.repr, domrepr.ImpliedTypeProperty)
 
         obj = pred.object
         self.assertIsInstance(obj, model.ResourceNode)
@@ -141,9 +141,13 @@ class TestTopLevelResource(unittest.TestCase):
         res2 = r["http://creativecommons.org/ns#Work"]
         self.assertIs(obj, res2)
 
-        # Same representation here - this element have three roles
+        # There should be no properties on this resource
+        self.assertEqual(len(res2), 0)
+
+        # Same representation here - this element have three roles, and two reprs
         self.assertEqual(len(res2.reprs), 1)
-        self.assertIsInstance(res2.reprs[0].repr, domrepr.TypedNode)
+        self.assertIsInstance(res2.reprs[0].repr, domrepr.ImpliedTypeProperty)
+
         
 
 
@@ -174,7 +178,7 @@ class TestLiteralNodes(unittest.TestCase):
 
         pred = res[1]
         self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/creator")
-        self.assertIsInstance(pred.repr.repr, domrepr.EmptyProperty)
+        self.assertIsInstance(pred.repr.repr, domrepr.EmptyPropertyLiteral)
 
         obj = pred.object
         self.assertIsInstance(obj, model.LiteralNode)
@@ -347,7 +351,7 @@ class TestResourceNodes(unittest.TestCase):
         res = r[""]
         pred = res[0]
         self.assertEqual(pred.uri, "http://purl.org/dc/elements/1.1/creator")
-        self.assertIsInstance(pred.repr.repr, domrepr.EmptyProperty)
+        self.assertIsInstance(pred.repr.repr, domrepr.EmptyPropertyResource)
 
         obj = pred.object
         self.assertIsInstance(obj, model.ResourceNode)
@@ -361,7 +365,7 @@ class TestResourceNodes(unittest.TestCase):
         self.assertEqual(res2.uri, "http://example.org/test")
         self.assertEqual(len(res2), 0)
         self.assertEqual(len(res2.reprs), 1)
-        self.assertIsInstance(res2.reprs[0].repr, domrepr.EmptyProperty)
+        self.assertIsInstance(res2.reprs[0].repr, domrepr.EmptyPropertyResource)
 
 
     def test_linked_resource(self):
@@ -399,7 +403,7 @@ class TestResourceNodes(unittest.TestCase):
         self.assertEqual(len(res2), 1)
         self.assertEqual(len(res2.reprs), 2)
         self.assertIsInstance(res2.reprs[0].repr, domrepr.DescriptionNode)
-        self.assertIsInstance(res2.reprs[1].repr, domrepr.EmptyProperty)
+        self.assertIsInstance(res2.reprs[1].repr, domrepr.EmptyPropertyResource)
 
         
 
@@ -457,6 +461,7 @@ class TestBlankNodes(unittest.TestCase):
 </rdf:RDF>
 ''')
 
+        self.assertEqual(len(r), 1)
         res = r[""]
         pred = res[0]
         obj = pred.object
@@ -494,6 +499,7 @@ class TestBlankNodes(unittest.TestCase):
 ''')
 
         # Only results in the main resource
+        self.assertEqual(len(r), 1)
         res = r[""]
         pred = res[0]
         obj = pred.object
@@ -520,10 +526,12 @@ class TestBlankNodes(unittest.TestCase):
 ''')
 
         # Only results in the main resource
+        self.assertEqual(len(r), 1)
         res = r[""]
         pred = res[0]
         obj = pred.object
         self.assertIsInstance(obj, model.BlankNode)
+        self.assertIsInstance(pred.repr.repr, domrepr.EmptyPropertyBlankNode)
 
         # The node should use the provided ID
         self.assertTrue(obj.uri.external)

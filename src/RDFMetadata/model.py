@@ -17,10 +17,20 @@ import uuid
 from . import observer
 
 #
-# Model events
+# Events sent to observers of the model when it updates
 #
 
 class AddPredicate(observer.Event): pass
+
+
+#
+# Events that are sent to the model to update it when the underlying representation changes
+#
+
+class ResourceNodeReprAdded(observer.Event): pass
+class BlankNodeReprAdded(observer.Event): pass
+class PredicateNodeReprAdded(observer.Event): pass
+class PredicateLiteralReprAdded(observer.Event): pass
 
 
 class Root(observer.Subject, collections.Mapping):
@@ -28,13 +38,33 @@ class Root(observer.Subject, collections.Mapping):
         super(Root, self).__init__()
 
         self.repr = repr
-
+        self.repr.register_observer(self._on_repr_update)
+        
         # There is exactly one instance for each URI or nodeID
         self.resource_nodes = {}
         self.blank_nodes = {}
 
 
-    def get_resource_node(self, uri):
+    def _on_repr_update(self, event):
+        if isinstance(event, ResourceNodeReprAdded):
+            node = self._get_resource_node(event.uri)
+        
+        elif isinstance(event, BlankNodeReprAdded):
+            node = self._get_blank_node(event.id)
+
+        else:
+            return
+
+        node._add_repr(event.repr)
+        
+
+    def _on_node_update(self, event):
+        # Just pass on the event to allow model users to choose
+        # whether to listen to root updates or node updates
+        self.notify_observers(event)
+
+
+    def _get_resource_node(self, uri):
         """Return a ResourceNode for uri, creating one if it doesn't exist.
         """
 
@@ -43,25 +73,38 @@ class Root(observer.Subject, collections.Mapping):
         except KeyError:
             node = ResourceNode(self, uri)
             self.resource_nodes[uri] = node
+            node.register_observer(self._on_node_update)
 
         return node
 
 
-    def get_blank_node(self, uri):
-        """Return a BlankNode for uri, creating one if it doesn't exist.
+    def _get_blank_node(self, id):
+        """Return a BlankNode for id, creating one if it doesn't exist.
         """
 
         try:
-            node = self.blank_nodes[uri]
+            node = self.blank_nodes[id]
         except KeyError:
-            node = BlankNode(self, uri)
-            self.blank_nodes[uri] = node
+            node = BlankNode(self, id)
+            self.blank_nodes[id] = node
+            node.register_observer(self._on_node_update)
 
         return node
+
+
+    def _get_node(self, uri):
+        """Return either a blank node or a resource node, depending on the type of URI.
+        """
+        
+        if isinstance(uri, NodeID):
+            return self._get_blank_node(uri)
+        else:
+            return self._get_resource_node(uri)
 
 
     def __str__(self):
         s = '\n'.join(map(str, self.resource_nodes.itervalues()))
+        s += '\n'
         s += '\n'.join(map(str, self.blank_nodes.itervalues()))
         return s
 
@@ -116,9 +159,15 @@ class QName(URI):
             self.tag_name = local_name
         super(QName, self).__init__(ns_uri + local_name)
 
+    def __repr__(self):
+        return '{0.__class__.__name__}("{0.ns_uri}", "{0.ns_prefix}", "{0.local_name}")'.format(self)
+
 
 class NodeID(URI):
     """Used for the ID of a blank node.
+
+    This isn't really an URI, but it's easier on users of the model if
+    they can easily refer to it as that.
     """
     def __init__(self, node_id):
         if node_id:
@@ -130,8 +179,14 @@ class NodeID(URI):
 
         super(NodeID, self).__init__('_:' + self.node_id)
         
+    def __repr__(self):
+        if self.external:
+            return '{0.__class__.__name__}("{0.node_id}")'.format(self)
+        else:
+            return '{0.__class__.__name__}(None)'.format(self)
 
-class Node(object):
+
+class Node(observer.Subject, object):
     def __init__(self, root):
         super(Node, self).__init__()
         self.root = root
@@ -146,16 +201,31 @@ class SubjectNode(Node, collections.Sequence):
         self.reprs = []
         self.predicates = []
         
-    def add_repr(self, repr):
+    def _add_repr(self, repr):
         assert repr not in self.reprs
         self.reprs.append(repr)
+        repr.register_observer(self._on_repr_update)
 
-    def add_predicate(self, pred):
-        assert isinstance(pred, Predicate)
-        assert pred not in self.predicates
-        self.predicates.append(pred)
 
-        self.root.notify_observers(AddPredicate(node = self, predicate = pred))
+    def _on_repr_update(self, event):
+        if isinstance(event, PredicateNodeReprAdded):
+            node = self.root._get_node(event.object_uri)
+
+            pred = Predicate(self.root, event.repr,
+                             event.predicate_uri,
+                             node)
+
+            self.predicates.append(pred)
+            self.notify_observers(AddPredicate(node = self, predicate = pred))
+
+        elif isinstance(event, PredicateLiteralReprAdded):
+            node = LiteralNode(self.root, event.repr, event.value, event.type_uri)
+            pred = Predicate(self.root, event.repr,
+                             event.predicate_uri,
+                             node)
+
+            self.predicates.append(pred)
+            self.notify_observers(AddPredicate(node = self, predicate = pred))
 
 
     def add_literal_node(self, qname, value = '', type_uri = None):
@@ -164,15 +234,6 @@ class SubjectNode(Node, collections.Sequence):
 
         self.reprs[0].add_literal_node(self, qname, value, type_uri)
 
-
-    def __str__(self):
-        s = '# {0}({1})\n'.format(self.__class__.__name__, self.uri)
-
-        if self.predicates:
-            s += '<{0}>\n    {1} .\n'.format(
-                self.uri, ' ;\n    '.join(map(str, self.predicates)))
-
-        return s
 
     #
     # Support read-only sequence interface to access the predicates
@@ -190,11 +251,25 @@ class SubjectNode(Node, collections.Sequence):
 
 
 class ResourceNode(SubjectNode):
-    pass
+    def __str__(self):
+        s = '# ResourceNode({0})\n'.format(self.uri)
+
+        if self.predicates:
+            s += '<{0}>\n    {1} .\n'.format(
+                self.uri, ' ;\n    '.join(map(str, self.predicates)))
+
+        return s
 
 
 class BlankNode(SubjectNode):
-    pass
+    def __str__(self):
+        s = '# BlankNode({0})\n'.format(self.uri)
+
+        if self.predicates:
+            s += '{0}\n    {1} .\n'.format(
+                self.uri, ' ;\n    '.join(map(str, self.predicates)))
+
+        return s
 
 
 class LiteralNode(Node):
@@ -232,8 +307,10 @@ class Predicate(object):
                     self.uri, self.object.value, self.object.type_uri)
             else:
                 return '<{0}> "{1}"'.format(self.uri, self.object.value)
-        elif isinstance(self.object, SubjectNode):
+        elif isinstance(self.object, ResourceNode):
             return '<{0}> <{1}>'.format(self.uri, self.object.uri)
+        elif isinstance(self.object, BlankNode):
+            return '<{0}> {1}'.format(self.uri, self.object.uri)
         else:
             return '<{0}> ""'.format(self.uri)
 

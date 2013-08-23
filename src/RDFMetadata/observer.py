@@ -6,9 +6,21 @@
 #
 # Distributed under an GPLv2 license, please see LICENSE in the top dir.
 
+import sys
+
+# Set this to a function taking args (subject, event) to see everything sent
+global_observer = None
+
+def log_observer(subject, event):
+    sys.stderr.write('{0}: {1}\n'.format(repr(subject), event))
+
+
 class Event(object):
     def __init__(self, **kws):
         self.__dict__.update(kws)
+
+    def __str__(self):
+        return '{0}({1})'.format(self.__class__.__name__, self.__dict__)
 
 
 class Subject(object):
@@ -71,6 +83,10 @@ class Subject(object):
             assert not self._pending_additions
 
             self._notification_in_progress = True
+
+            if global_observer:
+                global_observer(self, event)
+
             for obs in self._observers:
                 obs(event)
         finally:
@@ -95,3 +111,33 @@ class Subject(object):
         if self._pending_events:
             ev = self._pending_events.pop(0)
             self.notify_observers(ev)
+
+
+class AssertEvent(object):
+    """Helper class for unit tests:
+
+    Used this as a context manager to check that a certain sequence of
+    events is notified by a subject:
+
+    with AssertEvent(self, subject, EventClass1, EventClass2...):
+        ...
+    """
+    
+    def __init__(self, test, subject, *event_classes):
+        self.test = test
+        self.subject = subject
+        self.expected = event_classes
+        self.actual = []
+        
+    def _on_event(self, e):
+        self.actual.append(e.__class__)
+
+    def __enter__(self):
+        self.subject.register_observer(self._on_event)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.subject.unregister_observer(self._on_event)
+
+        if exc_type is None:
+            self.test.assertSequenceEqual(self.expected, self.actual)
+

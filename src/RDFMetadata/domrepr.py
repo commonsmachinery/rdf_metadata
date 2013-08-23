@@ -9,7 +9,7 @@
 import sys
 import xml.dom
 
-from . import model, namespaces
+from . import model, namespaces, observer
 
 
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -20,19 +20,40 @@ class UnsupportedFunctionError(Exception):
         super(Exception, self).__init__('{0} unsupported on {1}'.format(func, obj))
 
         
-class Root(object):
+class Root(observer.Subject, object):
     """Representation for the root RDF element.
     """
 
-    def __init__(self, doc, element, namespaces, root_element_is_rdf):
+    def __init__(self, doc, element):
         super(Root, self).__init__()
         
         self.doc = doc
         self.element = element
-        self.namespaces = namespaces
+        self.namespaces = namespaces.Namespaces(None, element)
 
         # Necessary to know when adding top-level resources
-        self.root_element_is_rdf = root_element_is_rdf
+        self.root_element_is_rdf = is_rdf_element(element, 'RDF')
+
+    def parse_into_model(self, strict = True):
+        """Return a new model.Root object that contains all
+        nodes and predicates under this DOM root node.
+        """
+
+        # Create the model, which will add an observer that reacts
+        # to parse events 
+        model_root = model.Root(self)
+
+        # Some circular dependencies between models.  Might resolve
+        # that later, but I'm wary about adding too much stuff into
+        # these classes and this module
+        from . import parser
+        p = parser.RDFXMLParser(self, strict = strict)
+        p.parse_node_element_list(self, self.element, True)
+
+        return model_root
+
+    def get_child_ns(self, element):
+        return namespaces.Namespaces(self.namespaces, element)
 
     def get_ns_prefix(self, uri, preferred_prefix):
         return self.repr.namespaces.get_prefix(uri, preferred_prefix)
@@ -41,7 +62,7 @@ class Root(object):
         self.element.writexml(sys.stderr)
 
 
-class Repr(object):
+class Repr(observer.Subject, object):
     """Intermediate object for the representation of a node.
 
     This is needed since operations that change data may also change
@@ -50,7 +71,14 @@ class Repr(object):
 
     def __init__(self, repr):
         super(Repr, self).__init__()
-        self.repr = repr
+        self.repr = None
+        self._set_repr(repr)
+
+        # It helps having doc here too, and that one won't change
+        self.doc = repr.doc
+
+    def get_child_ns(self, element):
+        return self.repr.get_child_ns(element)
 
     def get_ns_prefix(self, uri, preferred_prefix):
         return self.repr.get_ns_prefix(uri, preferred_prefix)
@@ -59,19 +87,36 @@ class Repr(object):
         return self.repr.get_rdf_ns_prefix()
 
     def set_literal_value(self, text):
-        self.repr = self.repr.set_literal_value(text)
+        self._set_repr(self.repr.set_literal_value(text))
 
     def set_datatype(self, type_uri):
-        self.repr = self.repr.set_datatype(type_uri)
+        self._set_repr(self.repr.set_datatype(type_uri))
 
     def add_literal_node(self, node, qname, value, type_uri):
-        self.repr = self.repr.add_literal_node(node, qname, value, type_uri)
+        self._set_repr(self.repr.add_literal_node(node, qname, value, type_uri))
 
     def dump(self):
         self.repr.element.writexml(sys.stderr)
 
+    def _set_repr(self, repr):
+        if repr is self.repr:
+            return
 
-class TypedRepr(object):
+        if self.repr:
+            self.repr.unregister_observer(self._on_repr_update)
+
+        self.repr = repr
+
+        if self.repr:
+            self.repr.register_observer(self._on_repr_update)
+
+    def _on_repr_update(self, event):
+        # Just pass on the event
+        self.notify_observers(event)
+        
+            
+
+class TypedRepr(observer.Subject, object):
     def __init__(self, doc, element, namespaces):
         super(TypedRepr, self).__init__()
         
@@ -93,6 +138,9 @@ class TypedRepr(object):
 
     def get_rdf_ns_prefix(self):
         return self.namespaces.get_prefix(RDF_NS, 'rdf')
+
+    def get_child_ns(self, element):
+        return namespaces.Namespaces(self.namespaces, element)
 
     def add_namespace(self, qname):
         prefix = self.namespaces.get_prefix(qname.ns_uri, qname.ns_prefix)
@@ -126,17 +174,23 @@ class ElementNode(TypedRepr):
             element.appendChild(self.doc.createTextNode(value))
             repr_cls = LiteralProperty
         else:
-            repr_cls = EmptyProperty
+            repr_cls = EmptyPropertyLiteral
 
         self.element.appendChild(element)
 
-        repr = Repr(repr_cls(self.doc, element,
-                             namespaces.Namespaces(self.namespaces, element)))
+        # TODO: this should really be triggered by a notification from
+        # the DOM when adding the child element.  Pity minidom doesn't
+        # support that.
 
-        # Create predicate and add to node
-        lit_node = model.LiteralNode(node.root, repr, value, type_uri)
-        pred = model.PredicateLiteral(node.root, repr, qname, lit_node)
-        node.add_predicate(pred)
+        repr = Repr(repr_cls(self.doc, element,
+                             self.get_child_ns(element)))
+
+        self.notify_observers(
+            model.PredicateLiteralReprAdded(parent = self,
+                                            repr = repr,
+                                            predicate_uri = qname,
+                                            value = value,
+                                            type_uri = type_uri))
 
         return self
 
@@ -161,6 +215,16 @@ class TypedNode(ElementNode):
 
       - ResourceNode (without rdf:nodeID)
       - BlankNode (with rdf:nodeID)
+    """
+    pass
+
+
+class ImpliedTypeProperty(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
+    (when the name is NOT rdf:Description)
+
+    Represents:
+
       - Predicate (for the generated rdf:type predicate)
       - ResourceNode (for the generated rdf:type object)
     """
@@ -215,45 +279,45 @@ class LiteralProperty(TypedRepr):
             return self
         else:
             # No more content
-            return self.to(EmptyProperty)
+            return self.to(EmptyPropertyLiteral)
 
 
-class EmptyProperty(TypedRepr):
+class EmptyPropertyLiteral(LiteralProperty):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
+
+    Represents:
+
+      - Predicate (always)
+      - LiteralNode (without rdf:resource or rdf:nodeID)
+    """
+    pass
+
+
+class EmptyPropertyResource(TypedRepr):
     """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
     Represents:
 
       - Predicate (always)
       - ResourceNode (with rdf:resource)
-      - BlankNode (with rdf:nodeID)
-      - LiteralNode (without either)
     """
-    def set_literal_value(self, text):
-        if text:
-            # Since it will no longer be empty, change to a LiteralProperty instead
+    pass
 
-            # TODO: check that that is possible
 
-            new = self.to(LiteralProperty)
-            new.set_literal_value(text)
-            return new
-        else:
-            return self
+class EmptyPropertyBlankNode(TypedRepr):
+    """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
-    def set_datatype(self, type_uri):
-        if type_uri:
-            # TODO: check that this is allowed
-            pass
+    Represents:
+
+      - Predicate (always)
+      - BlankNode (with rdf:nodeID)
+    """
+    pass
+
+
+def is_rdf_element(element, name):
+    """Return TRUE if this is an RDF element with the local NAME."""
+    return (element.namespaceURI == RDF_NS
+            and element.localName == name)
         
-        # Remove old first, then add new if still set
-        try:
-            self.element.removeAttributeNS(RDF_NS, 'datatype')
-        except xml.dom.NotFoundErr:
-            pass
-
-        if type_uri:
-            self.element.setAttributeNS(
-                RDF_NS, self.get_rdf_ns_prefix() + ':datatype',
-                type_uri)
-
-        return self
+    
