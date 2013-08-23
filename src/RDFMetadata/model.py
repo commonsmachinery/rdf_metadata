@@ -254,9 +254,8 @@ class ResourceNode(SubjectNode):
     def __str__(self):
         s = '# ResourceNode({0})\n'.format(self.uri)
 
-        if self.predicates:
-            s += '<{0}>\n    {1} .\n'.format(
-                self.uri, ' ;\n    '.join(map(str, self.predicates)))
+        for pred in self.predicates:
+            s += '<{0}>\t{1} .\n'.format(self.uri, pred)
 
         return s
 
@@ -265,9 +264,8 @@ class BlankNode(SubjectNode):
     def __str__(self):
         s = '# BlankNode({0})\n'.format(self.uri)
 
-        if self.predicates:
-            s += '{0}\n    {1} .\n'.format(
-                self.uri, ' ;\n    '.join(map(str, self.predicates)))
+        for pred in self.predicates:
+            s += '{0}\t{1} .\n'.format(self.uri, pred)
 
         return s
 
@@ -303,16 +301,16 @@ class Predicate(object):
     def __str__(self):
         if isinstance(self.object, LiteralNode):
             if self.object.type_uri:
-                return '<{0}> "{1}"^^<{2}>'.format(
+                return '<{0}>\t"{1}"^^<{2}>'.format(
                     self.uri, self.object.value, self.object.type_uri)
             else:
-                return '<{0}> "{1}"'.format(self.uri, self.object.value)
+                return '<{0}>\t"{1}"'.format(self.uri, self.object.value)
         elif isinstance(self.object, ResourceNode):
-            return '<{0}> <{1}>'.format(self.uri, self.object.uri)
+            return '<{0}>\t<{1}>'.format(self.uri, self.object.uri)
         elif isinstance(self.object, BlankNode):
-            return '<{0}> {1}'.format(self.uri, self.object.uri)
+            return '<{0}>\t{1}'.format(self.uri, self.object.uri)
         else:
-            return '<{0}> ""'.format(self.uri)
+            return '<{0}>\t""'.format(self.uri)
 
 
 class PredicateResource(Predicate):
