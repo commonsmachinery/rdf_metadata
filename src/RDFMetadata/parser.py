@@ -66,10 +66,10 @@ class RDFXMLParser(object):
 
         if is_rdf_element(element, 'Description'):
             typed_node = False
-            repr = domrepr.Repr(domrepr.DescriptionNode(parent.doc, element, ns))
+            repr = domrepr.Repr(domrepr.DescriptionNode(self.repr_root, element, ns))
         else:
             typed_node = True
-            repr = domrepr.Repr(domrepr.TypedNode(parent.doc, element, ns))
+            repr = domrepr.Repr(domrepr.TypedNode(self.repr_root, element, ns))
 
         # Check what kind of node this is by presence of rdf:ID,
         # rdf:nodeID or rdf:about
@@ -124,7 +124,7 @@ class RDFXMLParser(object):
             # all the predicates of the actual resource node.
 
             type_repr = domrepr.Repr(domrepr.ImpliedTypeProperty(
-                    parent.doc, element, ns))
+                    self.repr_root, element, ns))
 
             type_uri = get_element_uri(element)
             
@@ -216,7 +216,7 @@ class RDFXMLParser(object):
             raise RDFError('more than one sub-element in a predicate',
                            self.element)
 
-        repr = domrepr.Repr(domrepr.ResourceProperty(parent.doc, element, ns))
+        repr = domrepr.Repr(domrepr.ResourceProperty(self.repr_root, element, ns))
         node_uri = self.parse_node_element(repr, subelements[0])
 
         # Tell node about the new predicate
@@ -246,7 +246,7 @@ class RDFXMLParser(object):
             
         # TODO: xml:lang
 
-        repr = domrepr.Repr(domrepr.LiteralProperty(parent.doc, element, ns))
+        repr = domrepr.Repr(domrepr.LiteralProperty(self.repr_root, element, ns))
 
         parent.notify_observers(
             model.PredicateLiteralReprAdded(parent = parent,
@@ -279,7 +279,7 @@ class RDFXMLParser(object):
 
         if resource_uri:
             repr = domrepr.Repr(domrepr.EmptyPropertyResource(
-                    parent.doc, element, ns))
+                    self.repr_root, element, ns))
 
             # Tell model about the object node.  This might seem
             # weird, but remember that rdf:resource is just a
@@ -302,7 +302,7 @@ class RDFXMLParser(object):
             uri = model.NodeID(node_id)
             
             repr = domrepr.Repr(domrepr.EmptyPropertyBlankNode(
-                    parent.doc, element, ns))
+                    self.repr_root, element, ns))
 
             # Same as rdf:resource, rdf:nodeID is just a shorthand
             self.repr_root.notify_observers(
@@ -321,7 +321,7 @@ class RDFXMLParser(object):
 
         else:
             repr = domrepr.Repr(domrepr.EmptyPropertyLiteral(
-                    parent.doc, element, ns))
+                    self.repr_root, element, ns))
 
             parent.notify_observers(
                 model.PredicateLiteralReprAdded(parent = parent,

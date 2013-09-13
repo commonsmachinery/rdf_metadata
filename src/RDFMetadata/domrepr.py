@@ -10,7 +10,7 @@ import sys
 import xml.dom
 
 from . import model, namespaces, observer
-
+from . import domwrapper
 
 RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 
@@ -28,11 +28,19 @@ class Root(observer.Subject, object):
         super(Root, self).__init__()
         
         self.doc = doc
-        self.element = element
+        self.element = domwrapper.Element(element)
         self.namespaces = namespaces.Namespaces(None, element)
+
+        self.element.register_observer(self._on_dom_update)
 
         # Necessary to know when adding top-level resources
         self.root_element_is_rdf = is_rdf_element(element, 'RDF')
+
+        # Some circular dependencies between models.  Might resolve
+        # that later, but I'm wary about adding too much stuff into
+        # these classes and this module
+        from . import parser
+        self.parser = parser.RDFXMLParser(self)
 
     def parse_into_model(self, strict = True):
         """Return a new model.Root object that contains all
@@ -43,12 +51,11 @@ class Root(observer.Subject, object):
         # to parse events 
         model_root = model.Root(self)
 
-        # Some circular dependencies between models.  Might resolve
-        # that later, but I'm wary about adding too much stuff into
-        # these classes and this module
-        from . import parser
-        p = parser.RDFXMLParser(self, strict = strict)
-        p.parse_node_element_list(self, self.element, True)
+        # Only do strict parsing on original document, and be forgiving
+        # on later DOM updates
+        self.parser.strict = strict
+        self.parser.parse_node_element_list(self, self.element, True)
+        self.parser.strict = False
 
         return model_root
 
@@ -60,6 +67,9 @@ class Root(observer.Subject, object):
 
     def dump(self):
         self.element.writexml(sys.stderr)
+
+    def _on_dom_update(self, event):
+        pass
 
 
 class Repr(observer.Subject, object):
@@ -74,8 +84,8 @@ class Repr(observer.Subject, object):
         self.repr = None
         self._set_repr(repr)
 
-        # It helps having doc here too, and that one won't change
-        self.doc = repr.doc
+        # It helps having the root here too, and that one won't change
+        self.root = repr.root
 
     def get_child_ns(self, element):
         return self.repr.get_child_ns(element)
@@ -117,15 +127,17 @@ class Repr(observer.Subject, object):
             
 
 class TypedRepr(observer.Subject, object):
-    def __init__(self, doc, element, namespaces):
+    def __init__(self, root, element, namespaces):
         super(TypedRepr, self).__init__()
         
-        self.doc = doc
-        self.element = element
+        self.root = root
+        self.element = domwrapper.Element(element)
         self.namespaces = namespaces
 
+        self.element.register_observer(self._on_dom_update)
+
     def to(self, cls):
-        return cls(self.doc, self.element, self.namespaces)
+        return cls(self.root, self.element, self.namespaces)
 
     def set_literal_value(self, text):
         raise UnsupportedFunctionError('set_literal_value', self)
@@ -149,6 +161,9 @@ class TypedRepr(observer.Subject, object):
         else:
             return model.QName(qname.ns_uri, prefix, qname.local_name)
 
+    def _on_dom_update(self, event):
+        pass
+
 
 class ElementNode(TypedRepr):
     """http://www.w3.org/TR/rdf-syntax-grammar/#nodeElement
@@ -163,7 +178,7 @@ class ElementNode(TypedRepr):
         # <ns:name rdf:datatype="type_uri">value</ns:name>
 
         qname = self.add_namespace(qname)
-        element = self.doc.createElementNS(qname.ns_uri, qname.tag_name)
+        element = self.root.doc.createElementNS(qname.ns_uri, qname.tag_name)
 
         if type_uri:
             element.setAttributeNS(
@@ -171,28 +186,25 @@ class ElementNode(TypedRepr):
                 type_uri)
 
         if value:
-            element.appendChild(self.doc.createTextNode(value))
+            element.appendChild(self.root.doc.createTextNode(value))
             repr_cls = LiteralProperty
         else:
             repr_cls = EmptyPropertyLiteral
 
+        # Add the child, trigger a ChildAdded event
         self.element.appendChild(element)
 
-        # TODO: this should really be triggered by a notification from
-        # the DOM when adding the child element.  Pity minidom doesn't
-        # support that.
 
-        repr = Repr(repr_cls(self.doc, element,
-                             self.get_child_ns(element)))
+    def _on_dom_update(self, event):
+        if isinstance(event, domwrapper.ChildAdded):
+            assert event.parent is self.element
+            if event.child.nodeType == event.child.ELEMENT_NODE:
+                self._parse_new_element(event.child)
 
-        self.notify_observers(
-            model.PredicateLiteralReprAdded(parent = self,
-                                            repr = repr,
-                                            predicate_uri = qname,
-                                            value = value,
-                                            type_uri = type_uri))
 
-        return self
+    def _parse_new_element(self, element):
+        self.root.parser.parse_property_element(self, element)
+
 
 
 class DescriptionNode(ElementNode):
@@ -275,7 +287,7 @@ class LiteralProperty(TypedRepr):
 
         if text:
             # Set new
-            self.element.appendChild(self.doc.createTextNode(text))
+            self.element.appendChild(self.root.doc.createTextNode(text))
             return self
         else:
             # No more content
