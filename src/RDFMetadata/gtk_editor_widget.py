@@ -289,12 +289,21 @@ class MetadataEditor(object):
             if isinstance(obj, model.LiteralNode):
                 obj.set_value(text)
 
-                # TODO: this should be changed on callbacks from the domrepr layer
-                self.tree_store[i][2] = text
-
 
     def _model_observer(self, event):
-        if isinstance(event, model.AddPredicate):
+        if isinstance(event, model.PredicateAdded):
             tree_iter = self._lookup_tree_object(event.node)
             i = self._add_predicate_to_tree(event.predicate, tree_iter)
             self.tree_view.get_selection().select_iter(i)
+
+        elif isinstance(event, model.PredicateObjectChanged):
+            # TODO: catch changes from Literal to resource refs
+            if not isinstance(event.predicate.object, model.LiteralNode):
+                return
+            
+            tree_iter = self._lookup_tree_object(event.predicate)
+            if tree_iter:
+                pass
+                self.tree_store[tree_iter][2] = event.object.value
+                self.tree_store[tree_iter][3] = 'Literal'
+

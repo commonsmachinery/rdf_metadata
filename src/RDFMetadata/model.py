@@ -20,7 +20,8 @@ from . import observer
 # Events sent to observers of the model when it updates
 #
 
-class AddPredicate(observer.Event): pass
+class PredicateAdded(observer.Event): pass
+class PredicateObjectChanged(observer.Event): pass
 
 
 #
@@ -31,7 +32,8 @@ class ResourceNodeReprAdded(observer.Event): pass
 class BlankNodeReprAdded(observer.Event): pass
 class PredicateNodeReprAdded(observer.Event): pass
 class PredicateLiteralReprAdded(observer.Event): pass
-
+class PredicateLiteralReprValueChanged(observer.Event): pass
+class PredicateLiteralReprTypeChanged(observer.Event): pass
 
 class Root(observer.Subject, collections.Mapping):
     def __init__(self, repr):
@@ -210,22 +212,28 @@ class SubjectNode(Node, collections.Sequence):
     def _on_repr_update(self, event):
         if isinstance(event, PredicateNodeReprAdded):
             node = self.root._get_node(event.object_uri)
-
-            pred = Predicate(self.root, event.repr,
-                             event.predicate_uri,
-                             node)
-
-            self.predicates.append(pred)
-            self.notify_observers(AddPredicate(node = self, predicate = pred))
+            self._add_predicate(event.repr, event.predicate_uri, node)
 
         elif isinstance(event, PredicateLiteralReprAdded):
             node = LiteralNode(self.root, event.repr, event.value, event.type_uri)
-            pred = Predicate(self.root, event.repr,
-                             event.predicate_uri,
-                             node)
+            self._add_predicate(event.repr, event.predicate_uri, node)
 
-            self.predicates.append(pred)
-            self.notify_observers(AddPredicate(node = self, predicate = pred))
+
+    def _add_predicate(self, repr, uri, object):
+        pred = Predicate(self.root, repr, uri, object)
+        
+        self.predicates.append(pred)
+        self.notify_observers(PredicateAdded(node = self, predicate = pred))
+
+        # Listen on predicate model updates
+        # TODO: remember to unregister when removing the predicate
+        pred.register_observer(self._on_predicate_update)
+
+
+    def _on_predicate_update(self, event):
+        # Just pass on the event to allow model users to choose
+        # whether to listen to node updates or predicate updates
+        self.notify_observers(event)
 
 
     def add_literal_node(self, qname, value = '', type_uri = None):
@@ -274,30 +282,60 @@ class LiteralNode(Node):
     def __init__(self, root, repr, value, type_uri = None):
         super(LiteralNode, self).__init__(root)
         self.repr = repr
-
         self.value = value
         self.type_uri = type_uri
+
+        repr.register_observer(self._on_repr_update)
 
     def set_value(self, value):
         self.repr.set_literal_value(value)
 
-        # TODO: perhaps this should be triggered by XML notifications?
-        self.value = value
-
 
     def set_type_uri(self, type_uri):
-        self.type_uri = type_uri
-
         self.repr.set_datatype(type_uri)
-        
 
-class Predicate(object):
+        
+    def _on_repr_update(self, event):
+        if isinstance(event, PredicateLiteralReprValueChanged):
+            assert self.repr.is_event_source(event)
+            self.value = event.value
+
+        elif isinstance(event, PredicateLiteralReprTypeChanged):
+            assert self.repr.is_event_source(event)
+            self.type_uri = event.type_uri
+            
+
+class Predicate(observer.Subject, object):
     def __init__(self, root, repr, uri, object):
+        super(Predicate, self).__init__()
+
         self.root = root
         self.repr = repr
         self.uri = uri
         self.object = object
+
+        repr.register_observer(self._on_repr_update)
+
+        # As a special case, also listen on updates to literal nodes
+        # so we can propagate changes in its value to model observers
+        if isinstance(object, LiteralNode):
+            object.repr.register_observer(self._on_object_repr_update)
+
+        # TODO: remember to unregister from the object.repr when
+        # object is changed later
         
+    def _on_repr_update(self, event):
+        pass
+    
+    def _on_object_repr_update(self, event):
+        if (isinstance(event, PredicateLiteralReprValueChanged)
+            or isinstance(event, PredicateLiteralReprTypeChanged)):
+            assert self.object.repr.is_event_source(event)
+            self.notify_observers(
+                PredicateObjectChanged(
+                    predicate = self, object = self.object))
+
+
     def __str__(self):
         if isinstance(self.object, LiteralNode):
             if self.object.type_uri:
@@ -312,12 +350,3 @@ class Predicate(object):
         else:
             return '<{0}>\t""'.format(self.uri)
 
-
-class PredicateResource(Predicate):
-    pass
-
-class PredicateLiteral(Predicate):
-    pass
-
-class PredicateEmpty(Predicate):
-    pass

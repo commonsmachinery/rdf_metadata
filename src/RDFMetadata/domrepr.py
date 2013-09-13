@@ -68,6 +68,9 @@ class Root(observer.Subject, object):
     def dump(self):
         self.element.writexml(sys.stderr)
 
+    def is_event_source(self, event):
+        return event.repr is self
+
     def _on_dom_update(self, event):
         pass
 
@@ -95,6 +98,9 @@ class Repr(observer.Subject, object):
 
     def get_rdf_ns_prefix(self):
         return self.repr.get_rdf_ns_prefix()
+
+    def is_event_source(self, event):
+        return event.repr is self.repr
 
     def set_literal_value(self, text):
         self._set_repr(self.repr.set_literal_value(text))
@@ -292,6 +298,48 @@ class LiteralProperty(TypedRepr):
         else:
             # No more content
             return self.to(EmptyPropertyLiteral)
+
+
+    def _on_dom_update(self, event):
+        if isinstance(event, domwrapper.ChildRemoved):
+            self._update_text()
+
+        elif isinstance(event, domwrapper.ChildAdded):
+            node = event.child
+            if node.nodeType == node.TEXT_NODE:
+                self._update_text()
+            else:
+                # This would turn it into a ElementNode!
+                assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeSet):
+            if (event.attr.namespaceURI == RDF_NS
+                and event.attr._get_localName() == 'datatype'):
+                self._update_type(event.attr.value)
+
+        elif isinstance(event, domwrapper.AttributeRemoved):
+            if (event.attr.namespaceURI == RDF_NS
+                and event.attr._get_localName() == 'datatype'):
+                self._update_type(None)
+
+
+    def _update_text(self):
+        self.element.normalize()
+        text_nodes = [n for n in self.element.childNodes if n.nodeType == n.TEXT_NODE]
+        assert len(text_nodes) <= 1
+        
+        if text_nodes:
+            text = text_nodes[0].data
+        else:
+            text = ''
+
+        self.notify_observers(
+            model.PredicateLiteralReprValueChanged(repr = self, value = text))
+        
+
+    def _update_type(self, type_uri):
+        self.notify_observers(
+            model.PredicateLiteralReprTypeChanged(repr = self, type_uri = type_uri))
 
 
 class EmptyPropertyLiteral(LiteralProperty):
