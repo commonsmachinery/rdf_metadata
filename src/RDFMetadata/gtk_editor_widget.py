@@ -134,8 +134,12 @@ class MetadataEditor(object):
 
         self.tree_view.get_selection().connect(
             'changed', self._on_tree_selection_changed)
+        
+        sw = Gtk.ScrolledWindow()
+        sw.add(self.tree_view)
+        sw.set_shadow_type(Gtk.ShadowType.IN)
 
-        self.widget.pack_start(self.tree_view, True, True, 0)
+        self.widget.pack_start(sw, True, True, 0)
 
     def _populate_tree_store(self, root):
         # Always start with the default resource, if it exists
