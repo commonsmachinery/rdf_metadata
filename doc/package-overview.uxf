@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><diagram program="umlet" version="11.3">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>210</x>
+      <y>80</y>
+      <w>120</w>
+      <h>100</h>
+    </coordinates>
+    <panel_attributes>model
+--
++Root
++ResourceNode
++BlankNode
++LiteralNode
++Predicate
+bg=gray
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>220</x>
+      <y>290</y>
+      <w>90</w>
+      <h>60</h>
+    </coordinates>
+    <panel_attributes>domrepr
+--
++Root
++Repr
+bg=gray
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>410</x>
+      <y>290</y>
+      <w>110</w>
+      <h>60</h>
+    </coordinates>
+    <panel_attributes>parser
+--
++RDFXMLParser
+bg=gray
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>220</x>
+      <y>470</y>
+      <w>90</w>
+      <h>60</h>
+    </coordinates>
+    <panel_attributes>domwrapper
+--
++Node
++Element
++Text
+bg=gray
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>410</x>
+      <y>480</y>
+      <w>100</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>xml.dom</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>20</x>
+      <y>80</y>
+      <w>90</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>GUI
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>80</x>
+      <y>60</y>
+      <w>150</w>
+      <h>86</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+access and
+update</panel_attributes>
+    <additional_attributes>130;50;30;50</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>80</x>
+      <y>110</y>
+      <w>150</w>
+      <h>86</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+model
+events</panel_attributes>
+    <additional_attributes>30;50;130;50</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>180</x>
+      <y>150</y>
+      <w>96</w>
+      <h>160</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+update
+DOM</panel_attributes>
+    <additional_attributes>50;140;50;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>250</x>
+      <y>150</y>
+      <w>94</w>
+      <h>180</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+repr
+events</panel_attributes>
+    <additional_attributes>50;30;50;160</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>280</x>
+      <y>280</y>
+      <w>150</w>
+      <h>70</h>
+    </coordinates>
+    <panel_attributes>lt=-
+parse DOM</panel_attributes>
+    <additional_attributes>30;50;130;50</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>380</x>
+      <y>320</y>
+      <w>110</w>
+      <h>180</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+traverse
+DOM tree</panel_attributes>
+    <additional_attributes>60;160;60;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>180</x>
+      <y>320</y>
+      <w>90</w>
+      <h>170</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+wrap
+nodes</panel_attributes>
+    <additional_attributes>50;150;50;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>280</x>
+      <y>460</y>
+      <w>150</w>
+      <h>86</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+access
+nodes</panel_attributes>
+    <additional_attributes>130;50;30;50</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>240</x>
+      <y>320</y>
+      <w>94</w>
+      <h>170</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;.
+DOM
+events</panel_attributes>
+    <additional_attributes>50;30;50;150</additional_attributes>
+  </element>
+</diagram>
