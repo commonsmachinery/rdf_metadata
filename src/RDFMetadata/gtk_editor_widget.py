@@ -10,6 +10,18 @@ import sys
 from gi.repository import Gtk
 
 from . import model
+from . import vocab
+
+def readable_uri_data_func(column, cell, tree_model, iter, data):
+    res = tree_model[iter][0]
+    if res.uri:
+        try:
+            term = vocab.get_term(res.uri.ns_uri, res.uri.local_name)
+            cell.set_property('text', term.label)
+        except:
+            cell.set_property('text', str(res.uri))
+    else:
+        cell.set_property('text', '(default)')
 
 class SVGNodeList(object):
     def __init__(self, model_root_list, main_pane):
@@ -117,7 +129,8 @@ class MetadataEditor(object):
         self.tree_view = Gtk.TreeView(self.tree_store)
 
         render = Gtk.CellRendererText()
-        column = Gtk.TreeViewColumn("Property", render, text = 1)
+        column = Gtk.TreeViewColumn("Property", render)#, text = 1)
+        column.set_cell_data_func (render, readable_uri_data_func)
         column.set_sort_column_id(1)
         self.tree_view.append_column(column)
 
