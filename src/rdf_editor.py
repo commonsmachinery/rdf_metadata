@@ -12,7 +12,10 @@
 import sys
 from gi.repository import Gtk
 
-from RDFMetadata import parser, gtk_editor_widget
+from RDFMetadata import parser
+
+from editor.MetadataEditor import MetadataEditor
+from editor.SVGNodeList import SVGNodeList
 
 # Temporary: move into proper file loaders
 from xml.dom import minidom
@@ -58,10 +61,10 @@ class MainWindow(Gtk.Window):
         self.paned.set_position(200)
         vbox.add(self.paned)
 
-        self.editor = gtk_editor_widget.MetadataEditor(model_root_list[0])
+        self.editor = MetadataEditor(model_root_list[0])
         # Pass the self.paned object along to SVGNodeList to let it
         # keep track of which metadata_editor to show.
-        self.svglist = gtk_editor_widget.SVGNodeList(model_root_list, self.paned)
+        self.svglist = SVGNodeList(model_root_list, self.paned)
 
         vbox.show_all()
         self.set_default_size(600, 600)
