@@ -154,3 +154,15 @@ license = Term(
     label="has license",
     desc=""
 )
+
+attributionURL = Term(
+    uri=NS_URI + "attributionURL",
+    label="Attribution URL",
+    desc=""
+)
+
+attributionName = Term(
+    uri=NS_URI + "attributionName",
+    label="Attribution Name",
+    desc=""
+)

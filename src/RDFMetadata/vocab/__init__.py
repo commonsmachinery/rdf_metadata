@@ -9,23 +9,25 @@
 import sys
 
 class Term(object):
-	def __init__(self, uri, label=None, desc=None):
-		self.uri = uri
-		self.label = label
-		self.desc = desc
+    def __init__(self, uri, label=None, desc=None):
+        self.uri = uri
+        self.label = label
+        self.desc = desc
 
 vocabularies = {}
 
 import cc
 import dc
+import dcterms
+import rdf
+import xhtml
 
-for module in [cc, dc]:
-	vocabularies[module.NS_URI] = module
+for module in [cc, dc, dcterms, rdf, xhtml]:
+    vocabularies[module.NS_URI] = module
 
-#sys.exit(1)
 def get_term(ns_uri, localname):
-	ns_dic = vocabularies[ns_uri].__dict__
-	if localname.has_key(ns_dic) and isinstance(ns_dic[localname], Term):
-		return ns_dic[localname]
-	else:
-		raise LookupError("Wrong type for term %s" % localname)
+    ns_dic = vocabularies[ns_uri].__dict__
+    if ns_dic.has_key(localname) and isinstance(ns_dic[localname], Term):
+        return ns_dic[localname]
+    else:
+        raise LookupError("Wrong type for term %s" % localname)
