@@ -13,24 +13,15 @@ from RDFMetadata import model
 
 class MetadataEditor(object):
     def __init__(self, root, app):
-        self.widget = Gtk.Box(
-            spacing = 0,
-            orientation = Gtk.Orientation.VERTICAL)
+        self.widget = Gtk.ScrolledWindow(shadow_type = Gtk.ShadowType.IN)
 
         self.root = root
         self.app = app
 
         self.root.register_observer(self._model_observer)
 
-        #
-        # The tree view is the main part of the GUI
-        #
-
         # Tree store columns:
-        # 0: model.RDFNode object
-        # 1: property
-        # 2: value
-        # 3: row type
+        # 0: model.RDFNode object, 1: property, 2: value, 3: row type
         self.tree_store = Gtk.TreeStore(object, str, str, str)
 
         self.added_to_tree_store = set()
@@ -59,11 +50,19 @@ class MetadataEditor(object):
         self.tree_view.get_selection().connect(
             'changed', self._on_tree_selection_changed)
         
-        sw = Gtk.ScrolledWindow()
-        sw.add(self.tree_view)
-        sw.set_shadow_type(Gtk.ShadowType.IN)
+        self.widget.add(self.tree_view)
 
-        self.widget.pack_start(sw, True, True, 0)
+    # used by app.update_ui()
+    def add_enabled(self):
+        tree_model, tree_iter = self.tree_view.get_selection().get_selected()
+        if tree_iter:
+            obj = tree_model[tree_iter][0]
+        else:
+            obj = None
+
+        return isinstance(obj, model.SubjectNode) or \
+               (isinstance(obj, model.Predicate) and \
+                isinstance(obj.object, model.BlankNode))
 
     def _populate_tree_store(self, root):
         # Always start with the default resource, if it exists
@@ -151,18 +150,7 @@ class MetadataEditor(object):
 
 
     def _on_tree_selection_changed(self, selection):
-        tree_model, tree_iter = selection.get_selected()
-        if tree_iter:
-            obj = tree_model[tree_iter][0]
-        else:
-            obj = None
-
-        self.app.actions.get_action("AddProperty").set_sensitive(
-            isinstance(obj, model.SubjectNode) or
-            (isinstance(obj, model.Predicate)
-             and isinstance(obj.object, model.BlankNode))
-            )
-        #self.app.update_ui()
+        self.app.update_ui()
 
     def _on_value_edited(self, render, path, text):
         i = self.tree_store.get_iter(path)

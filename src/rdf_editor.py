@@ -5,49 +5,71 @@
 # Copyright 2013 Commons Machinery http://commonsmachinery.se/
 #
 # Authors: Peter Liljenberg <peter@commonsmachinery.se>
+#          Artem Popov <artfwo@commonsmachinery.se>
 #
 # Distributed under an GPLv2 license, please see LICENSE in the top dir.
 
 
-import sys
+import sys, argparse
 from gi.repository import Gtk
 
 from RDFMetadata import parser
 from RDFMetadata import model
 
 from editor.MetadataEditor import MetadataEditor
-from editor.SVGNodeList import SVGNodeList
 
 # Temporary: move into proper file loaders
 from xml.dom import minidom
+import xml.parsers.expat
 
 ui_info = \
 '''<ui>
   <menubar name='MenuBar'>
     <menu action='FileMenu'>
+      <menuitem action='FileOpen'/>
+      <menuitem action='FileSave'/>
+      <menuitem action='FileSaveAs'/>
+      <separator/>
       <menuitem action='Quit'/>
     </menu>
     <menu action='EditMenu'>
       <menuitem action='AddProperty'/>
+      <menuitem action='RemoveProperty'/>
     </menu>
   </menubar>
   <toolbar name='Toolbar'>
+    <toolitem action='FileOpen'/>
+    <toolitem action='FileSave'/>
+    <separator/>
     <toolitem action='ExpandAll'/>
     <toolitem action='CollapseAll'/>
-    <toolitem action='PrintXml'/>
+    <separator/>
     <toolitem action='AddProperty'/>
+    <toolitem action='RemoveProperty'/>
   </toolbar>
 </ui>'''
 
 class MainWindow(Gtk.Window):
     __gtype_name__ = "MainWindow"
 
-    def __init__(self, model_root_list):
+    def __init__(self):
         super(MainWindow, self).__init__(title = 'RDF Metadata Editor')
 
         action_entries = [
             ("FileMenu", None, "_File" ),
             ("EditMenu", None, "_Edit" ),
+            ("FileOpen", Gtk.STOCK_OPEN,
+             "_Open", "<control>O",
+             "Open",
+             self.on_file_open),
+            ("FileSave", Gtk.STOCK_SAVE,
+             "_Save", "<control>S",
+             "Save",
+             self.on_file_save),
+            ("FileSaveAs", Gtk.STOCK_SAVE_AS,
+             "_Save As...", "<control><shift>S",
+             "Save As",
+             self.on_file_save_as),
             ("Quit", Gtk.STOCK_QUIT,
              "_Quit", "<control>Q",
              "Quit",
@@ -60,14 +82,14 @@ class MainWindow(Gtk.Window):
              "_Collapse All", None,
              "Collapse All",
              self.on_collapse_all),
-            ("PrintXml", Gtk.STOCK_PRINT,
-             "_Print XML", None,
-             "Print XML",
-             self.on_print_xml),
             ("AddProperty", Gtk.STOCK_ADD,
              "_Add Property", None,
              "Add Property",
              self.on_add_property),
+            ("RemoveProperty", Gtk.STOCK_REMOVE,
+             "_Remove Property", None,
+             "Remove Property",
+             self.on_remove_property),
         ]
 
         self.actions = Gtk.ActionGroup("Actions")
@@ -87,25 +109,122 @@ class MainWindow(Gtk.Window):
         toolbar = menu_manager.get_widget("/Toolbar")
         vbox.pack_start(toolbar, False, False, 0)
 
-        self.paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
-        
+        self.paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)        
         vbox.add(self.paned)
 
-        self.editor = MetadataEditor(model_root_list[0], self)
-        # Pass the self.paned object along to SVGNodeList to let it
-        # keep track of which metadata_editor to show.
-        self.svglist = SVGNodeList(model_root_list, self.paned, self)
+        # Liststore columns: editor, page, Name to be displayed, Tooltip string
+        self.node_store = Gtk.ListStore(object, int, str, str)
+        self.node_view = Gtk.TreeView(model=self.node_store)
+
+        column = Gtk.TreeViewColumn("SVG Nodes", Gtk.CellRendererText(), text=2)
+        self.node_view.append_column(column)
+        self.node_view.get_selection().connect('changed', self._on_node_view_selection_changed)
+
+        sw = Gtk.ScrolledWindow(shadow_type=Gtk.ShadowType.IN)
+        sw.add(self.node_view)
+        self.paned.add1(sw)
+
+        self.notebook = Gtk.Notebook(show_tabs=False)
+        self.paned.add2(self.notebook)
 
         vbox.show_all()
         self.set_default_size(600, 600)
         self.paned.set_position(200)
+
+        self.filename = None
+        self.doc = None
+        self.update_ui()
     
-    # temporary method until we restructure the UI to use notebook, if decided
+    # hacked to return self.node_view selection in the process of moving to Gtk.Notebook
+    # TODO: when (if) a widget-centric MetadataEditor lands, remove it in favour of notebook.current_page
     def _get_active_editor(self):
-        tree_model, tree_iter = self.svglist.treeview.get_selection().get_selected()
+        tree_model, tree_iter = self.node_view.get_selection().get_selected()
         if tree_iter:
             return tree_model[tree_iter][0]
         return None
+
+    # enable/disable certain actions depending on the document state
+    def update_ui(self):
+        self.actions.get_action("AddProperty").set_sensitive(self.doc is not None)
+        self.actions.get_action("FileSaveAs").set_sensitive(self.doc is not None)
+        self.actions.get_action("FileSave").set_sensitive(self.filename is not None)
+
+        editor = self._get_active_editor()
+        if editor:
+            self.actions.get_action("AddProperty").set_sensitive(editor.add_enabled())
+
+    def load_file(self, filename):
+        try:
+            doc = minidom.parse(filename)
+            # Use whatever rdf:RDF elements there is
+            rdfs = doc.getElementsByTagNameNS("http://www.w3.org/1999/02/22-rdf-syntax-ns#", 'RDF')
+        except xml.parsers.expat.ExpatError, e:
+            dialog = Gtk.MessageDialog(self, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
+                Gtk.ButtonsType.OK, "Error")
+            dialog.format_secondary_text(str(e))
+            dialog.run()
+            dialog.destroy()
+            return
+
+        if not rdfs:
+            dialog = Gtk.MessageDialog(self, Gtk.DialogFlags.MODAL, Gtk.MessageType.ERROR,
+                Gtk.ButtonsType.OK, "Error")
+            dialog.format_secondary_text("No RDFs found.")
+            dialog.run()
+            dialog.destroy()
+            return
+
+        self.doc = doc
+        self.filename = filename
+        for i, rdf in enumerate(rdfs):
+            model_root = parser.parse_RDFXML(doc=doc, root_element=rdf)
+            metadata_editor = MetadataEditor(model_root, self)
+            page = self.notebook.append_page(metadata_editor.widget, tab_label=None)
+            self.node_store.append([metadata_editor, page, "SVG Node " + str(i), "tooltip" + str(i)])
+            metadata_editor.widget.show_all()
+
+        # select first item, for _get_active_editor
+        self.node_view.get_selection().select_iter(self.node_store.get_iter_first())
+        self.update_ui()
+
+    def _on_node_view_selection_changed(self, selection):
+        tree_model, tree_iter = selection.get_selected()
+        if tree_iter:
+            page = tree_model[tree_iter][1]
+            self.notebook.set_current_page(page)
+
+
+    def on_file_open(self, action):
+        dialog = Gtk.FileChooserDialog(title="Open File",
+            parent=self,
+            action=Gtk.FileChooserAction.OPEN,
+            buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                     Gtk.STOCK_OPEN, Gtk.ResponseType.OK))
+        response = dialog.run()
+        #filename = dialog.get_filename()
+        if response == Gtk.ResponseType.OK:
+            self.load_file(dialog.get_filename())
+        dialog.destroy()
+
+    def on_file_save(self, action):
+        f = open(self.filename,"wb")
+        self.doc.writexml(f)
+        f.close()
+
+    def on_file_save_as(self, action):
+        dialog = Gtk.FileChooserDialog(title="Save File",
+            parent=self,
+            action=Gtk.FileChooserAction.SAVE,
+            buttons=(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                     Gtk.STOCK_SAVE, Gtk.ResponseType.OK))
+        response = dialog.run()
+        #filename = dialog.get_filename()
+        if response == Gtk.ResponseType.OK:
+            f = open(dialog.get_filename(),"wb")
+            self.doc.writexml(f)
+            f.close()
+            self.filename = dialog.get_filename()
+        dialog.destroy()
 
     def on_expand_all(self, action):
         editor = self._get_active_editor()
@@ -148,29 +267,24 @@ class MainWindow(Gtk.Window):
             model.QName('http://test/', 'test', 'Test'),
             'new value', 'http://test/type')
 
-    def on_quit(self, *args):
+    def on_remove_property(self, action):
+        pass
+
+    def on_quit(self, action):
         self.destroy()
 
     def do_destroy(self, *args):
         Gtk.main_quit()
 
-def main():
-    doc = minidom.parse(sys.stdin)
-
-    # Use whatever rdf:RDF elements there is
-    rdfs = doc.getElementsByTagNameNS("http://www.w3.org/1999/02/22-rdf-syntax-ns#", 'RDF')
-
-    if not rdfs:
-        sys.exit('no RDF found')
-
-    # Parse all RDF nodes available
-    model_root_list = []
-    for rdf in rdfs:
-        model_root_list.append(parser.parse_RDFXML(doc = doc, root_element = rdf))
-
-    win = MainWindow(model_root_list)
-    win.show()
-    Gtk.main()
-
 if __name__ == '__main__':
-    main()
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('input_file', nargs='?')
+    args = argparser.parse_args()
+
+    win = MainWindow()
+    win.show()
+
+    if args.input_file:
+        win.load_file(args.input_file)
+
+    Gtk.main()
