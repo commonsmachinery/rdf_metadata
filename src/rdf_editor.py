@@ -174,6 +174,10 @@ class MainWindow(Gtk.Window):
             dialog.destroy()
             return
 
+        self.node_store.clear()
+        for i in range(self.notebook.get_n_pages()):
+            self.notebook.remove_page(i)
+
         self.doc = doc
         self.filename = filename
         for i, rdf in enumerate(rdfs):
