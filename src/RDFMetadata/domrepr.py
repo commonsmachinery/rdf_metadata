@@ -193,9 +193,6 @@ class ElementNode(TypedRepr):
 
         if value:
             element.appendChild(self.root.doc.createTextNode(value))
-            repr_cls = LiteralProperty
-        else:
-            repr_cls = EmptyPropertyLiteral
 
         # Add the child, trigger a ChildAdded event
         self.element.appendChild(element)
@@ -269,17 +266,16 @@ class LiteralProperty(TypedRepr):
     """
 
     def set_datatype(self, type_uri):
-        # Remove old first, then add new if still set
-        try:
-            self.element.removeAttributeNS(RDF_NS, 'datatype')
-        except xml.dom.NotFoundErr:
-            pass
-
         if type_uri:
             self.element.setAttributeNS(
                 RDF_NS, self.get_rdf_ns_prefix() + ':datatype',
                 type_uri)
-
+        else:
+            try:
+                self.element.removeAttributeNS(RDF_NS, 'datatype')
+            except xml.dom.NotFoundErr:
+                pass
+            
         return self
 
 

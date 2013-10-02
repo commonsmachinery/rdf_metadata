@@ -14,7 +14,7 @@ from xml.dom import minidom
 import xpath
 
 from .. import parser, model, domrepr
-
+from .. import observer
 
 def get_root(xml):
     """Test helper function: parse XML and return a model.Root from the
@@ -86,7 +86,12 @@ class TestLiteralNode(CommonTest):
         # Change value
         #
 
-        obj.set_value('new value')
+        # Two events, unfortunately, since the content is first dropped,
+        # then a new text node is set.
+        with observer.AssertEvent(self, r,
+                                  model.PredicateObjectChanged,
+                                  model.PredicateObjectChanged):
+            obj.set_value('new value')
         self.assertIsNone(obj.type_uri)
 
         # Same repr, new value
@@ -99,7 +104,8 @@ class TestLiteralNode(CommonTest):
         # Set type_uri
         #
 
-        obj.set_type_uri('test:type')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_type_uri('test:type')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # Same repr, added attribute
@@ -110,7 +116,8 @@ class TestLiteralNode(CommonTest):
         # Drop value
         #
 
-        obj.set_value('')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_value('')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # New repr, no value
@@ -122,7 +129,8 @@ class TestLiteralNode(CommonTest):
         # Set value again
         #
 
-        obj.set_value('set again')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_value('set again')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # New repr, new value
@@ -134,7 +142,8 @@ class TestLiteralNode(CommonTest):
         # Drop type
         #
 
-        obj.set_type_uri(None)
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_type_uri(None)
         self.assertIsNone(obj.type_uri)
 
         # Same repr, no attr
@@ -158,8 +167,9 @@ class TestElementNode(CommonTest):
         res = r['']
         self.assertEqual(len(res), 0)
 
-        res.add_literal_node(
-            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
+        with observer.AssertEvent(self, r, model.PredicateAdded):
+            res.add_literal_node(
+                model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
 
         # Check that model updated
         self.assertEqual(len(res), 1)
@@ -189,9 +199,10 @@ class TestElementNode(CommonTest):
         res = r['']
         self.assertEqual(len(res), 0)
 
-        res.add_literal_node(
-            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
-            "value", "test:type")
+        with observer.AssertEvent(self, r, model.PredicateAdded):
+            res.add_literal_node(
+                model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
+                "value", "test:type")
 
         # Check that model updated
         self.assertEqual(len(res), 1)
