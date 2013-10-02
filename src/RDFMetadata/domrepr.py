@@ -199,7 +199,7 @@ class ElementNode(TypedRepr):
 
         # Add the child, trigger a ChildAdded event
         self.element.appendChild(element)
-
+        return self
 
     def _on_dom_update(self, event):
         if isinstance(event, domwrapper.ChildAdded):
