@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?><diagram program="umlet" version="11.3">
+  <zoom_level>10</zoom_level>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>580</x>
+      <y>120</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_rdf:RDF : Element_
+--
+bg=white
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>580</x>
+      <y>210</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_rdf:Description : Element_
+--
+about="urn:123"
+bg=white
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>630</x>
+      <y>140</y>
+      <w>50</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>580</x>
+      <y>300</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_dc:title : Element_
+--
+rdf:datatype="urn:type1"
+bg=white
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>580</x>
+      <y>390</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_contents : TextNode_
+--
+text: Test title
+bg=white
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>630</x>
+      <y>230</y>
+      <w>50</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>630</x>
+      <y>320</y>
+      <w>50</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;30;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>320</x>
+      <y>120</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_root : Root_
+--
+bg=white
+
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>550</x>
+      <y>90</y>
+      <w>220</w>
+      <h>380</h>
+    </coordinates>
+    <panel_attributes>DOM
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>450</x>
+      <y>110</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>320</x>
+      <y>210</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_resource : DescriptionNode_
+--
+bg=white</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>290</x>
+      <y>90</y>
+      <w>220</w>
+      <h>380</h>
+    </coordinates>
+    <panel_attributes>domrepr
+
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>320</x>
+      <y>300</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_predicate : LiteralProperty_
+--
+bg=white</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>450</x>
+      <y>290</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>450</x>
+      <y>200</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Package</type>
+    <coordinates>
+      <x>30</x>
+      <y>90</y>
+      <w>220</w>
+      <h>380</h>
+    </coordinates>
+    <panel_attributes>model
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>60</x>
+      <y>120</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_root : Root_
+--
+bg=white
+
+
+</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>60</x>
+      <y>210</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_resource : ResourceNode_
+--
+uri="urn:123"
+bg=white
+fg=blue</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>60</x>
+      <y>300</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_predicate : Predicate_
+--
+uri="dc:title"
+bg=white
+fg=red</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Class</type>
+    <coordinates>
+      <x>60</x>
+      <y>390</y>
+      <w>160</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>_object : LiteralNode_
+--
+value="Test title"
+type_uri="urn:type1"
+bg=white
+fg=green</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>190</x>
+      <y>110</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>190</x>
+      <y>200</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>190</x>
+      <y>290</y>
+      <w>150</w>
+      <h>50</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;30;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>190</x>
+      <y>290</y>
+      <w>150</w>
+      <h>140</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>30;120;130;30</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>60</x>
+      <y>140</y>
+      <w>144</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+.
+resource_nodes</panel_attributes>
+    <additional_attributes>80;30;80;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>80</x>
+      <y>230</y>
+      <w>116</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+.
+predicates
+</panel_attributes>
+    <additional_attributes>60;30;60;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Relation</type>
+    <coordinates>
+      <x>90</x>
+      <y>320</y>
+      <w>92</w>
+      <h>90</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+.
+object</panel_attributes>
+    <additional_attributes>50;30;50;70</additional_attributes>
+  </element>
+  <element>
+    <type>com.umlet.element.Note</type>
+    <coordinates>
+      <x>460</x>
+      <y>490</y>
+      <w>310</w>
+      <h>140</h>
+    </coordinates>
+    <panel_attributes>&lt;rdf:RDF&gt;
+  &lt;rdf:Description about="urn:123"&gt;
+    &lt;dc:title rdf:datatype="urn:type1"&gt;Test Title&lt;/&gt;
+  &lt;/&gt;
+&lt;/&gt;</panel_attributes>
+    <additional_attributes/>
+  </element>
+</diagram>
