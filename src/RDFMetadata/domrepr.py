@@ -27,8 +27,10 @@ class Root(observer.Subject, object):
     def __init__(self, doc, element):
         super(Root, self).__init__()
         
+        domwrapper.wrap(element)
+
         self.doc = doc
-        self.element = domwrapper.Element(element)
+        self.element = element
         self.namespaces = namespaces.Namespaces(None, element)
 
         self.element.register_observer(self._on_dom_update)
@@ -136,8 +138,10 @@ class TypedRepr(observer.Subject, object):
     def __init__(self, root, element, namespaces):
         super(TypedRepr, self).__init__()
         
+        domwrapper.wrap(element)
+
         self.root = root
-        self.element = domwrapper.Element(element)
+        self.element = element
         self.namespaces = namespaces
 
         self.element.register_observer(self._on_dom_update)
