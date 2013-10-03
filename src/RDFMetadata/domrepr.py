@@ -19,6 +19,22 @@ class UnsupportedFunctionError(Exception):
     def __init__(self, func, obj):
         super(Exception, self).__init__('{0} unsupported on {1}'.format(func, obj))
 
+
+#
+# Internal events
+#
+
+class NodeUnlinked(observer.Event):
+    """A node has been unlinked from the DOM tree.  Parameters:
+
+    - node: the unlinked node
+    """
+    pass
+
+
+#
+# DOM Representation classes
+#
         
 class Root(observer.Subject, object):
     """Representation for the root RDF element.
@@ -113,6 +129,11 @@ class Repr(observer.Subject, object):
     def add_literal_node(self, node, qname, value, type_uri):
         self._set_repr(self.repr.add_literal_node(node, qname, value, type_uri))
 
+    def remove(self):
+        """Remove this repr from the DOM tree.
+        """
+        self._set_repr(self.repr.remove())
+
     def dump(self):
         self.repr.element.writexml(sys.stderr)
 
@@ -157,6 +178,9 @@ class TypedRepr(observer.Subject, object):
 
     def add_literal_node(self, node, qname, value, type_uri):
         raise UnsupportedFunctionError('add_literal_node', self)
+
+    def remove(self):
+        raise UnsupportedFunctionError('remove', self)
 
     def get_rdf_ns_prefix(self):
         return self.namespaces.get_prefix(RDF_NS, 'rdf')
@@ -207,6 +231,13 @@ class ElementNode(TypedRepr):
             assert event.parent is self.element
             if event.child.nodeType == event.child.ELEMENT_NODE:
                 self._parse_new_element(event.child)
+
+        elif isinstance(event, domwrapper.ChildRemoved):
+            assert event.parent is self.element
+            if event.child.nodeType == event.child.ELEMENT_NODE:
+                # Send a notification to the Repr of that node that it
+                # was unlinked, and let it recurse
+                domwrapper.notify(event.child, NodeUnlinked(node = event.child))
 
 
     def _parse_new_element(self, element):
@@ -300,6 +331,12 @@ class LiteralProperty(TypedRepr):
             return self.to(EmptyPropertyLiteral)
 
 
+    def remove(self):
+        parent = self.element.parentNode
+        parent.removeChild(self.element)
+        return self
+        
+
     def _on_dom_update(self, event):
         if isinstance(event, domwrapper.ChildRemoved):
             self._update_text()
@@ -321,6 +358,10 @@ class LiteralProperty(TypedRepr):
             if (event.attr.namespaceURI == RDF_NS
                 and event.attr._get_localName() == 'datatype'):
                 self._update_type(None)
+
+        elif isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+            self.notify_observers(model.PredicateReprRemoved(repr = self))
 
 
     def _update_text(self):

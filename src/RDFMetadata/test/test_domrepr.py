@@ -16,6 +16,7 @@ import xpath
 from .. import parser, model, domrepr
 from .. import observer
 
+
 def get_root(xml):
     """Test helper function: parse XML and return a model.Root from the
     XML root element.
@@ -222,3 +223,29 @@ class TestElementNode(CommonTest):
         xp.assertValue('test:type', "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
         
         
+    # @observer.log_function_events
+    def test_remove_literal_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:title>Test</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        p = res[0]
+        
+        with observer.AssertEvent(self, r, model.PredicateRemoved):
+            p.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:title")
+

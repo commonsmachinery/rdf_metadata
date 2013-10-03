@@ -64,6 +64,17 @@ class MetadataEditor(object):
                (isinstance(obj, model.Predicate) and \
                 isinstance(obj.object, model.BlankNode))
 
+    def remove_enabled(self):
+        tree_model, tree_iter = self.tree_view.get_selection().get_selected()
+        if tree_iter:
+            obj = tree_model[tree_iter][0]
+        else:
+            obj = None
+
+        return (isinstance(obj, model.Predicate) and
+                isinstance(obj.object, model.LiteralNode))
+
+
     def _populate_tree_store(self, root):
         # Always start with the default resource, if it exists
         res = root.get("")
@@ -178,3 +189,11 @@ class MetadataEditor(object):
                 pass
                 self.tree_store[tree_iter][2] = event.object.value
                 self.tree_store[tree_iter][3] = 'Literal'
+
+        elif isinstance(event, model.PredicateRemoved):
+            tree_iter = self._lookup_tree_object(event.predicate)
+            if tree_iter:
+                # TODO: should we check that this row doesn't have
+                # subitems?
+                self.tree_store.remove(tree_iter)
+                

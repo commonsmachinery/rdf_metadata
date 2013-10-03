@@ -152,7 +152,12 @@ class MainWindow(Gtk.Window):
         editor = self._get_active_editor()
         if editor:
             self.actions.get_action("AddProperty").set_sensitive(editor.add_enabled())
+            self.actions.get_action("RemoveProperty").set_sensitive(editor.remove_enabled())
+        else:
+            self.actions.get_action("AddProperty").set_sensitive(False)
+            self.actions.get_action("RemoveProperty").set_sensitive(False)
 
+            
     def load_file(self, filename):
         try:
             doc = minidom.parse(filename)
@@ -272,7 +277,16 @@ class MainWindow(Gtk.Window):
             'new value', 'http://test/type')
 
     def on_remove_property(self, action):
-        pass
+        editor = self._get_active_editor()
+        if editor is None:
+            return
+
+        tree_model, tree_iter = editor.tree_view.get_selection().get_selected()
+        assert tree_iter is not None
+
+        obj = editor.tree_store[tree_iter][0]
+        obj.remove()
+        
 
     def on_quit(self, action):
         self.destroy()
