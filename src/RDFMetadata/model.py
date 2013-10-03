@@ -344,6 +344,9 @@ class ResourceNode(SubjectNode):
 
         return s
 
+    def __repr__(self):
+        return '<ResourceNode {0} at 0x{1:#x}>'.format(self.uri, id(self))
+
 
 class BlankNode(SubjectNode):
     def __str__(self):
@@ -353,6 +356,9 @@ class BlankNode(SubjectNode):
             s += '{0}\t{1} .\n'.format(self.uri, pred)
 
         return s
+
+    def __repr__(self):
+        return '<BlankNode {0} at 0x{1:#x}>'.format(self.uri, id(self))
 
 
 class LiteralNode(Node):
@@ -436,3 +442,5 @@ class Predicate(observer.Subject, object):
         else:
             return '<{0}>\t""'.format(self.uri)
 
+    def __repr__(self):
+        return '<Predicate {0} at 0x{1:#x}>'.format(self.uri, id(self))
