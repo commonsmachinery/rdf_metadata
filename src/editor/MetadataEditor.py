@@ -10,6 +10,17 @@ import sys
 from gi.repository import Gtk
 
 from RDFMetadata import model
+from RDFMetadata import vocab
+
+def property_name_data_func(column, cell, tree_model, iter, user_data):
+    uri = tree_model[iter][0].uri
+    if isinstance(uri, model.QName):
+        try:
+            term = vocab.get_term(uri.ns_uri, uri.local_name)
+            prefix = term.qname.ns_prefix
+            cell.set_property('text', "{0}:{1}".format(prefix, term.label))
+        except LookupError:
+            pass
 
 class MetadataEditor(object):
     def __init__(self, root, app):
@@ -35,6 +46,7 @@ class MetadataEditor(object):
         column = Gtk.TreeViewColumn("Property", render, text = 1)
         column.set_sort_column_id(1)
         self.tree_view.append_column(column)
+        column.set_cell_data_func(render, property_name_data_func)
 
         render = Gtk.CellRendererText(editable = True)
         render.connect('edited', self._on_value_edited)

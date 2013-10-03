@@ -115,7 +115,7 @@ class MainWindow(Gtk.Window):
         vbox.add(self.paned)
 
         # Liststore columns: editor, page, Name to be displayed, Tooltip string
-        self.node_store = Gtk.ListStore(object, int, str, str)
+        self.node_store = Gtk.ListStore(object, int, str)
         self.node_view = Gtk.TreeView(model=self.node_store)
 
         column = Gtk.TreeViewColumn("SVG Nodes", Gtk.CellRendererText(), text=2)
@@ -186,7 +186,12 @@ class MainWindow(Gtk.Window):
             model_root = parser.parse_RDFXML(doc=doc, root_element=rdf)
             metadata_editor = MetadataEditor(model_root, self)
             page = self.notebook.append_page(metadata_editor.widget, tab_label=None)
-            self.node_store.append([metadata_editor, page, "SVG Node " + str(i), "tooltip" + str(i)])
+
+            # get parentNode twice as rdfs are found under the /object/metadata/rdf path
+            actual_node = rdf.parentNode.parentNode
+            actual_id = actual_node.getAttribute('id')
+            self.node_store.append([metadata_editor, page,
+                "{1} ({0})".format(actual_node.localName, actual_id)])
             metadata_editor.widget.show_all()
 
         # select first item, for _get_active_editor
