@@ -17,6 +17,8 @@ from RDFMetadata import parser
 from RDFMetadata import model
 
 from editor.MetadataEditor import MetadataEditor
+from editor.AddPropertyDialog import AddPropertyDialog
+
 
 # Temporary: move into proper file loaders
 from xml.dom import minidom
@@ -246,30 +248,30 @@ class MainWindow(Gtk.Window):
             editor.root.repr.element.writexml(sys.stdout)
 
     def on_add_property(self, action):
-        editor = self._get_active_editor()
-        if editor is None:
-            return
+        dialog = AddPropertyDialog(self)
+        response = dialog.run()
+        if response == Gtk.ResponseType.OK:
+            editor = self._get_active_editor()
+            tree_model, tree_iter = editor.tree_view.get_selection().get_selected()
+            assert tree_iter is not None
 
-        tree_model, tree_iter = editor.tree_view.get_selection().get_selected()
-        assert tree_iter is not None
+            obj = editor.tree_store[tree_iter][0]
 
-        obj = editor.tree_store[tree_iter][0]
+            if isinstance(obj, model.SubjectNode):
+                pass
+            elif (isinstance(obj, model.Predicate)
+                  and isinstance(obj.object, model.SubjectNode)):
+                obj = obj.object
+            else:
+                assert False, 'attempting to add property to a non-SubjectNode'
 
-        if isinstance(obj, model.SubjectNode):
-            pass
-        elif (isinstance(obj, model.Predicate)
-              and isinstance(obj.object, model.SubjectNode)):
-            obj = obj.object
-        else:
-            assert False, 'attempting to add property to a non-SubjectNode'
+            # Make sure the row is expanded
+            path = editor.tree_store.get_path(tree_iter)
+            editor.tree_view.expand_row(path, False)
 
-        # Make sure the row is expanded
-        path = editor.tree_store.get_path(tree_iter)
-        editor.tree_view.expand_row(path, False)
-
-        obj.add_literal_node(
-            model.QName('http://test/', 'test', 'Test'),
-            'new value', 'http://test/type')
+            obj.add_literal_node(dialog.get_property().qname, dialog.get_value(), None)
+        dialog.destroy()
+            
 
     def on_remove_property(self, action):
         pass
