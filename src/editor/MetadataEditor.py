@@ -97,6 +97,9 @@ class MetadataEditor(object):
         for pred in res:
             self._add_predicate_to_tree(pred, res_iter)
 
+        return res_iter
+    
+
     def _add_predicate_to_tree(self, pred, parent):
         if isinstance(pred.object, model.LiteralNode):
             i = self.tree_store.append(
@@ -201,7 +204,11 @@ class MetadataEditor(object):
                 self.tree_store.remove(tree_iter)
                 
         elif isinstance(event, model.ResourceNodeAdded):
-            self._add_resource_to_tree(event.node)
+            tree_iter = self._add_resource_to_tree(event.node)
+
+            # Show the new node
+            path = self.tree_store.get_path(tree_iter)
+            self.tree_view.expand_row(path, True)
 
         # Blank nodes are added by reference from a predicate
 
