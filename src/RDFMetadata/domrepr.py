@@ -111,6 +111,9 @@ class Repr(observer.Subject, object):
     def add_literal_node(self, node, qname, value, type_uri):
         self._set_repr(self.repr.add_literal_node(node, qname, value, type_uri))
 
+    def add_blank_node(self, node, qname, node_id=None):
+        self._set_repr(self.repr.add_blank_node(node, qname, node_id))
+
     def dump(self):
         self.repr.element.writexml(sys.stderr)
 
@@ -154,6 +157,9 @@ class TypedRepr(observer.Subject, object):
     def add_literal_node(self, node, qname, value, type_uri):
         raise UnsupportedFunctionError('add_literal_node', self)
 
+    def add_blank_node(self, node, qname, node_id=None):
+        raise UnsupportedFunctionError('add_blank_node', self)
+
     def get_rdf_ns_prefix(self):
         return self.namespaces.get_prefix(RDF_NS, 'rdf')
 
@@ -196,6 +202,27 @@ class ElementNode(TypedRepr):
             repr_cls = LiteralProperty
         else:
             repr_cls = EmptyPropertyLiteral
+
+        # Add the child, trigger a ChildAdded event
+        self.element.appendChild(element)
+        return self
+
+    def add_blank_node(self, node, qname, node_id=None):
+        assert isinstance(node, model.SubjectNode)
+
+        # Build XML:
+        # <ns:name><rdf:Description rdf:nodeID="node_id"/></ns:name>
+
+        qname = self.add_namespace(qname)
+        element = self.root.doc.createElementNS(qname.ns_uri, qname.tag_name)
+
+        description_node = self.root.doc.createElementNS(RDF_NS, "Description")
+        if node_id:
+            description_node.setAttributeNS(
+                RDF_NS, self.get_rdf_ns_prefix() + ':nodeID',
+                node_id)
+
+        element.appendChild(description_node)
 
         # Add the child, trigger a ChildAdded event
         self.element.appendChild(element)

@@ -269,7 +269,10 @@ class MainWindow(Gtk.Window):
             path = editor.tree_store.get_path(tree_iter)
             editor.tree_view.expand_row(path, False)
 
-            obj.add_literal_node(dialog.get_property().qname, dialog.get_value(), None)
+            if dialog.get_blank_node():
+                obj.add_blank_node(dialog.get_property())
+            else:
+                obj.add_literal_node(dialog.get_property(), dialog.get_value(), None)
         dialog.destroy()
             
 
