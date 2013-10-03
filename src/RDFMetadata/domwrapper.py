@@ -58,6 +58,25 @@ class AttributeRemoved(observer.Event):
     pass
 
 #
+# Helper methods
+# 
+
+def notify(node, event):
+    """Notify observers of NODE that EVENT has occurred.
+
+    Does nothing if node hasn't been injected with an
+    observer.Subject.
+    """
+
+    try:
+        n = node.notify_observers
+    except AttributeError:
+        return
+
+    n(event)
+    
+
+#
 # DOM wrappers
 #
 
