@@ -47,6 +47,15 @@ class PredicateRemoved(observer.Event):
     pass
 
 
+class NodeRemoved(observer.Event):
+    """A resource or blank node has been removed from the model.
+
+    Parameter:
+
+    - node: the removed node
+    """
+    
+
 #
 # Events that are sent to the model to update it when the underlying representation changes
 #
@@ -57,6 +66,14 @@ class PredicateNodeReprAdded(observer.Event): pass
 class PredicateLiteralReprAdded(observer.Event): pass
 class PredicateLiteralReprValueChanged(observer.Event): pass
 class PredicateLiteralReprTypeChanged(observer.Event): pass
+
+class NodeReprRemoved(observer.Event):
+    """A subject node repr has been removed from the DOM tree.
+
+    Parameters:
+
+    - repr: the removed Repr
+    """
 
 class PredicateReprRemoved(observer.Event):
     """A predicate representation has been removed from the DOM tree.
@@ -93,7 +110,14 @@ class Root(observer.Subject, collections.Mapping):
         
 
     def _on_node_update(self, event):
-        # Just pass on the event to allow model users to choose
+        if isinstance(event, NodeRemoved):
+            node = event.node
+            if isinstance(node, ResourceNode):
+                del self.resource_nodes[node.uri]
+            else:
+                del self.blank_nodes[node.uri]
+
+        # Pass on the event to allow model users to choose
         # whether to listen to root updates or node updates
         self.notify_observers(event)
 
@@ -250,6 +274,11 @@ class SubjectNode(Node, collections.Sequence):
             node = LiteralNode(self.root, event.repr, event.value, event.type_uri)
             self._add_predicate(event.repr, event.predicate_uri, node)
 
+        elif isinstance(event, NodeReprRemoved):
+            for r in self.reprs:
+                if r.is_event_source(event):
+                    self._repr_removed(r)
+
 
     def _add_predicate(self, repr, uri, object):
         pred = Predicate(self.root, repr, uri, object)
@@ -260,6 +289,16 @@ class SubjectNode(Node, collections.Sequence):
         # Listen on predicate model updates
         # TODO: remember to unregister when removing the predicate
         pred.register_observer(self._on_predicate_update)
+
+
+    def _repr_removed(self, r):
+        self.reprs.remove(r)
+        if not self.reprs:
+            # No more reprs, so we disappear.  There can't be any
+            # predicates at this point
+            assert not(self.predicates)
+            self.notify_observers(NodeRemoved(node = self))
+            self.root = None
 
 
     def _on_predicate_update(self, event):

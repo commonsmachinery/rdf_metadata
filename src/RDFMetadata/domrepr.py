@@ -404,6 +404,27 @@ class EmptyPropertyResource(TypedRepr):
     """
     pass
 
+    def remove(self):
+        parent = self.element.parentNode
+        parent.removeChild(self.element)
+        return self
+
+
+    def _on_dom_update(self, event):
+        if isinstance(event, domwrapper.ChildAdded):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeSet):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeRemoved):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+            self.notify_observers(model.PredicateReprRemoved(repr = self))
+            self.notify_observers(model.NodeReprRemoved(repr = self))
+
 
 class EmptyPropertyBlankNode(TypedRepr):
     """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
@@ -414,6 +435,27 @@ class EmptyPropertyBlankNode(TypedRepr):
       - BlankNode (with rdf:nodeID)
     """
     pass
+
+    def remove(self):
+        parent = self.element.parentNode
+        parent.removeChild(self.element)
+        return self
+
+
+    def _on_dom_update(self, event):
+        if isinstance(event, domwrapper.ChildAdded):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeSet):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeRemoved):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+            self.notify_observers(model.PredicateReprRemoved(repr = self))
+            self.notify_observers(model.NodeReprRemoved(repr = self))
 
 
 def is_rdf_element(element, name):

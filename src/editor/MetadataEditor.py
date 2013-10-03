@@ -71,8 +71,11 @@ class MetadataEditor(object):
         else:
             obj = None
 
-        return (isinstance(obj, model.Predicate) and
-                isinstance(obj.object, model.LiteralNode))
+        return (isinstance(obj, model.Predicate) 
+                and (isinstance(obj.object, model.LiteralNode)
+                     or (isinstance(obj.object, model.ResourceNode)
+                         # doesn't support types yet
+                         and not obj.uri == 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type')))
 
 
     def _populate_tree_store(self, root):
@@ -192,6 +195,13 @@ class MetadataEditor(object):
 
         elif isinstance(event, model.PredicateRemoved):
             tree_iter = self._lookup_tree_object(event.predicate)
+            if tree_iter:
+                # TODO: should we check that this row doesn't have
+                # subitems?
+                self.tree_store.remove(tree_iter)
+
+        elif isinstance(event, model.NodeRemoved):
+            tree_iter = self._lookup_tree_object(event.node)
             if tree_iter:
                 # TODO: should we check that this row doesn't have
                 # subitems?

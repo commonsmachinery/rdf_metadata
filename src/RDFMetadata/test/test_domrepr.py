@@ -249,3 +249,51 @@ class TestElementNode(CommonTest):
         # Check that XML updated
         xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:title")
 
+
+    # @observer.log_function_events
+    def test_remove_empty_property_resource(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:source rdf:resource="http://test/" />
+    <dc:source rdf:resource="http://test/" />
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        self.assertTrue("http://test/" in r)
+        
+        res = r['']
+        self.assertEqual(len(res), 2)
+        p0 = res[0]
+        p1 = res[1]
+
+        # Removing the first reference will not remove the resource node
+        with observer.AssertEvent(self, r,
+                                  model.PredicateRemoved):
+            p0.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 1)
+        self.assertTrue("http://test/" in r)
+
+        # Check that XML updated
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:source")
+
+
+        # Since removing the remaining reference to this resource, it should
+        # be removed from the model wholly
+        with observer.AssertEvent(self, r,
+                                  model.PredicateRemoved,
+                                  model.NodeRemoved):
+            p1.remove()
+
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+        self.assertTrue("http://test/" not in r)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:source")
