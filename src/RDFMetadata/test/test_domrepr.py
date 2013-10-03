@@ -297,3 +297,46 @@ class TestElementNode(CommonTest):
 
         # Check that XML updated
         xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:source")
+
+
+    #@observer.log_function_events
+    def test_remove_resource_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description>
+        <dc:title>Test</dc:title>
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        creator = res[0]
+
+        blank = creator.object
+        self.assertEqual(len(blank), 1)
+        title = blank[0]
+        
+        with observer.AssertEvent(
+            self, r,
+            (model.PredicateRemoved, { 'predicate': creator }),
+            (model.PredicateRemoved, { 'predicate': title }),
+            (model.NodeRemoved, { 'node': blank }),
+            ):
+            creator.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(r.blank_nodes), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator")
+
+

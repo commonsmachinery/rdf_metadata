@@ -239,10 +239,21 @@ class ElementNode(TypedRepr):
                 # was unlinked, and let it recurse
                 domwrapper.notify(event.child, NodeUnlinked(node = event.child))
 
+        elif isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+            self._unlinked()
+
 
     def _parse_new_element(self, element):
         self.root.parser.parse_property_element(self, element)
 
+    def _unlinked(self):
+        # Tell any children about this first to unlink predicates
+        for el in iter_subelements(self.element):
+            domwrapper.notify(el, NodeUnlinked(node = el))
+
+        # Then we can unlink ourselves
+        self.notify_observers(model.NodeReprRemoved(repr = self))
 
 
 class DescriptionNode(ElementNode):
@@ -289,6 +300,34 @@ class ResourceProperty(TypedRepr):
       - Predicate
     """
     pass
+
+
+    def remove(self):
+        parent = self.element.parentNode
+        parent.removeChild(self.element)
+        return self
+
+    def _on_dom_update(self, event):
+        if isinstance(event, domwrapper.ChildRemoved):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.ChildAdded):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeSet):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, domwrapper.AttributeRemoved):
+            assert False, 'not implemented yet'
+
+        elif isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+
+            self.notify_observers(model.PredicateReprRemoved(repr = self))
+
+            # We must also notify down, telling the node it's repr has been unlinked
+            for el in iter_subelements(self.element):
+                domwrapper.notify(el, NodeUnlinked(node = el))
 
 
 class LiteralProperty(TypedRepr):
@@ -464,3 +503,9 @@ def is_rdf_element(element, name):
             and element.localName == name)
         
     
+def iter_subelements(element):
+    """Return an iterator over all child nodes that are elements"""
+
+    for n in element.childNodes:
+        if n.nodeType == n.ELEMENT_NODE:
+            yield n

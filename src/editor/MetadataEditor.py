@@ -73,9 +73,8 @@ class MetadataEditor(object):
 
         return (isinstance(obj, model.Predicate) 
                 and (isinstance(obj.object, model.LiteralNode)
-                     or (isinstance(obj.object, model.ResourceNode)
-                         # doesn't support types yet
-                         and not obj.uri == 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type')))
+                     # doesn't support types yet
+                     or not obj.uri == 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'))
 
 
     def _populate_tree_store(self, root):
