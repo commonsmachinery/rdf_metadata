@@ -340,3 +340,54 @@ class TestElementNode(CommonTest):
         xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator")
 
 
+    #@observer.log_function_events
+    def test_remove_typed_node_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:cc="http://creativecommons.org/ns#">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <cc:Agent>
+        <dc:title>Test</dc:title>
+      </cc:Agent>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        # cc:Agent is an invention in Inkscape - doesn't really exist in cc:
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        # There's two resources: "" and cc:Agent
+        self.assertEqual(len(r), 2)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        creator = res[0]
+
+        blank = creator.object
+
+        # Remember the implied rdf:type property too
+        self.assertEqual(len(blank), 2)
+        rdftype = blank[0]
+        type_node = rdftype.object
+        title = blank[1]
+        
+        with observer.AssertEvent(
+            self, r,
+            (model.PredicateRemoved, { 'predicate': creator }),
+            (model.PredicateRemoved, { 'predicate': title }),
+            (model.PredicateRemoved, { 'predicate': rdftype }),
+            (model.NodeRemoved, { 'node': blank }),
+            (model.NodeRemoved, { 'node': type_node}),
+            ):
+            creator.remove()
+            
+        # Check that model updated: cc:Agent should be gone now
+        self.assertEqual(len(r), 1)
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(r.blank_nodes), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator")

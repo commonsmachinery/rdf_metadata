@@ -293,10 +293,8 @@ class SubjectNode(Node, collections.Sequence):
 
     def _repr_removed(self, r):
         self.reprs.remove(r)
-        if not self.reprs:
-            # No more reprs, so we disappear.  There can't be any
-            # predicates at this point
-            assert not(self.predicates)
+        if not self.reprs and not self.predicates:
+            # No more references to us, so we disappear.
             self.notify_observers(NodeRemoved(node = self))
             self.root = None
 
@@ -306,11 +304,17 @@ class SubjectNode(Node, collections.Sequence):
             # This must be a predicate of ours
             self.predicates.remove(event.predicate)
 
-            
         # Pass on the event to allow model users to choose
         # whether to listen to node updates or predicate updates
         event.node = self
         self.notify_observers(event)
+
+        if isinstance(event, PredicateRemoved):
+            if not self.reprs and not self.predicates:
+                # No more references to us, so we disappear (but not before
+                # passing on the PredicateRemoved that triggered this
+                self.notify_observers(NodeRemoved(node = self))
+                self.root = None
 
 
     def add_literal_node(self, qname, value = '', type_uri = None):

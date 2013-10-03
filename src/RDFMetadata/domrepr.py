@@ -289,7 +289,16 @@ class ImpliedTypeProperty(TypedRepr):
       - Predicate (for the generated rdf:type predicate)
       - ResourceNode (for the generated rdf:type object)
     """
-    pass
+
+    def _on_dom_update(self, event):
+        if isinstance(event, NodeUnlinked):
+            assert event.node is self.element
+            self._unlinked()
+
+    def _unlinked(self):
+        # The predicate is gone, as well as the type resource
+        self.notify_observers(model.PredicateReprRemoved(repr = self))
+        self.notify_observers(model.NodeReprRemoved(repr = self))
 
 
 class ResourceProperty(TypedRepr):
