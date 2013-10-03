@@ -168,6 +168,7 @@ class Root(observer.Subject, collections.Mapping):
     def _on_node_update(self, event):
         if isinstance(event, NodeRemoved):
             node = event.node
+            node.unregister_observer(self._on_node_update)
             if isinstance(node, ResourceNode):
                 del self.resource_nodes[node.uri]
             else:
@@ -345,11 +346,11 @@ class SubjectNode(Node, collections.Sequence):
         self.notify_observers(PredicateAdded(node = self, predicate = pred))
 
         # Listen on predicate model updates
-        # TODO: remember to unregister when removing the predicate
         pred.register_observer(self._on_predicate_update)
 
 
     def _repr_removed(self, r):
+        r.unregister_observer(self._on_repr_update)
         self.reprs.remove(r)
         if not self.reprs and not self.predicates:
             # No more references to us, so we disappear.
@@ -361,6 +362,7 @@ class SubjectNode(Node, collections.Sequence):
         if isinstance(event, PredicateRemoved):
             # This must be a predicate of ours
             self.predicates.remove(event.predicate)
+            event.predicate.unregister_observer(self._on_predicate_update)
 
         # Pass on the event to allow model users to choose
         # whether to listen to node updates or predicate updates
@@ -466,9 +468,6 @@ class Predicate(observer.Subject, object):
         if isinstance(object, LiteralNode):
             object.repr.register_observer(self._on_object_repr_update)
 
-        # TODO: remember to unregister from the object.repr when
-        # object is changed later
-        
     def remove(self):
         self.repr.remove()
 
@@ -479,6 +478,12 @@ class Predicate(observer.Subject, object):
             # Just signal and let the SubjectNode remove us
             self.notify_observers(PredicateRemoved(predicate = self))
             self.root = None
+
+            self.repr.unregister_observer(self._on_repr_update)
+            self.repr = None
+
+            if isinstance(self.object, LiteralNode):
+                self.object.repr.unregister_observer(self._on_object_repr_update)
 
         elif isinstance(event, PredicateChangedToLiteralRepr):
             if isinstance(self.object, LiteralNode):
