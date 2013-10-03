@@ -90,7 +90,16 @@ class Root(observer.Subject, object):
         return event.repr is self
 
     def _on_dom_update(self, event):
-        pass
+        if isinstance(event, domwrapper.ChildAdded):
+            assert event.parent is self.element
+            self.parser.parse_node_element(self, event.child, top_level = True)
+
+        elif isinstance(event, domwrapper.ChildRemoved):
+            assert event.parent is self.element
+            if event.child.nodeType == event.child.ELEMENT_NODE:
+                # Send a notification to the Repr of that node that it
+                # was unlinked, and let it recurse
+                domwrapper.notify(event.child, NodeUnlinked(node = event.child))
 
 
 class Repr(observer.Subject, object):
@@ -290,6 +299,47 @@ class ImpliedTypeProperty(TypedRepr):
       - ResourceNode (for the generated rdf:type object)
     """
 
+
+    def remove(self):
+        # This is really tricky, since we have to go from this:
+        #   <ns:Type...><ns:pred... />...</ns:Type>
+        # to this:
+        #   <rdf:Description><ns:pred... />...</rdf:Description>
+
+        # DOM doesn't support renaming elements, so we have to create
+        # a new element and move over the contents of the old one.
+        # Finally that is unlinked, and the new one is put in place
+        # instead.
+
+        element = self.root.doc.createElementNS(
+            RDF_NS, self.get_rdf_ns_prefix() + ':Description')
+
+        # Copy attributes 
+        attrs = self.element.attributes
+        for i in range(attrs.length):
+            attr = attrs.item(i)
+            element.setAttributeNS(attr.namespaceURI, attr.name, attr.value)
+
+        # Move children (triggering DOM removal notifications)
+        while True:
+            child = self.element.firstChild
+            if child is None:
+                break
+
+            self.element.removeChild(child)
+            element.appendChild(child)
+
+        # Unlink ourselves, which will trigger any DOM notifications
+        # on attributes
+
+        parent = self.element.parentNode
+        parent.removeChild(self.element)
+
+        # Add the new node to the tree, triggering the final batch
+        # of notifications
+        parent.appendChild(element)
+
+
     def _on_dom_update(self, event):
         if isinstance(event, NodeUnlinked):
             assert event.node is self.element
@@ -301,15 +351,37 @@ class ImpliedTypeProperty(TypedRepr):
         self.notify_observers(model.NodeReprRemoved(repr = self))
 
 
-class ResourceProperty(TypedRepr):
+class Property(TypedRepr):
+    """7.2.14: http://www.w3.org/TR/rdf-syntax-grammar/#propertyElt
+
+    propertyElt:
+       resourcePropertyElt |
+       literalPropertyElt |
+       parseTypeLiteralPropertyElt |
+       parseTypeResourcePropertyElt |
+       parseTypeCollectionPropertyElt |
+       parseTypeOtherPropertyElt |
+       emptyPropertyElt
+
+    This is not instansiated directly.
+    """
+
+    def _reparse(self):
+        self.root.parser.parse_property_element(self, self.element, reparsing = True)
+
+        # This will always result in a new repr, so stop listening to
+        # element events
+        self.element.unregister_observer(self._on_dom_update)
+
+        
+
+class ResourceProperty(Property):
     """http://www.w3.org/TR/rdf-syntax-grammar/#resourcePropertyElt
 
     Represents:
 
       - Predicate
     """
-    pass
-
 
     def remove(self):
         parent = self.element.parentNode
@@ -318,7 +390,16 @@ class ResourceProperty(TypedRepr):
 
     def _on_dom_update(self, event):
         if isinstance(event, domwrapper.ChildRemoved):
-            assert False, 'not implemented yet'
+            assert event.parent is self.element
+            child = event.child
+
+            # We only care about elements being removed, text nodes
+            # can come and go as they wish
+            if child.nodeType == child.ELEMENT_NODE:
+                # Tell child that it is unlinked
+                domwrapper.notify(child, NodeUnlinked(node = child))
+                
+                self._reparse()
 
         elif isinstance(event, domwrapper.ChildAdded):
             assert False, 'not implemented yet'
@@ -339,7 +420,8 @@ class ResourceProperty(TypedRepr):
                 domwrapper.notify(el, NodeUnlinked(node = el))
 
 
-class LiteralProperty(TypedRepr):
+
+class LiteralProperty(Property):
     """http://www.w3.org/TR/rdf-syntax-grammar/#literalPropertyElt
 
     Represents:
@@ -394,8 +476,8 @@ class LiteralProperty(TypedRepr):
             if node.nodeType == node.TEXT_NODE:
                 self._update_text()
             else:
-                # This would turn it into a ElementNode!
-                assert False, 'not implemented yet'
+                # Turning into something else...
+                self._reparse()
 
         elif isinstance(event, domwrapper.AttributeSet):
             if (event.attr.namespaceURI == RDF_NS
@@ -442,7 +524,7 @@ class EmptyPropertyLiteral(LiteralProperty):
     pass
 
 
-class EmptyPropertyResource(TypedRepr):
+class EmptyPropertyResource(Property):
     """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
     Represents:
@@ -474,7 +556,7 @@ class EmptyPropertyResource(TypedRepr):
             self.notify_observers(model.NodeReprRemoved(repr = self))
 
 
-class EmptyPropertyBlankNode(TypedRepr):
+class EmptyPropertyBlankNode(Property):
     """http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
     Represents:
