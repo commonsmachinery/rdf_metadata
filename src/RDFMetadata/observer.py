@@ -7,13 +7,7 @@
 # Distributed under an GPLv2 license, please see LICENSE in the top dir.
 
 import sys
-
-# Set this to a function taking args (subject, event) to see everything sent
-global_observer = None
-
-def log_observer(subject, event):
-    sys.stderr.write('{0}: {1}\n'.format(repr(subject), event))
-
+from functools import wraps
 
 class Event(object):
     def __init__(self, **kws):
@@ -111,6 +105,36 @@ class Subject(object):
         if self._pending_events:
             ev = self._pending_events.pop(0)
             self.notify_observers(ev)
+
+
+#
+# Debug and unit test support code
+#
+            
+# Set this to a function taking args (subject, event) to see everything sent
+global_observer = None
+
+def log_observer(subject, event):
+    sys.stderr.write('{0}: {1}\n'.format(repr(subject), event))
+
+
+def log_function_events(f):
+    """Decorator which will enable logging of events generated during
+    calls to the decorated function.
+    """
+
+    @wraps(f)
+    def log_wrapper(*args, **kw):
+        global global_observer
+        prev = global_observer
+        try:
+            global_observer = log_observer
+            return f(*args, **kw)
+        finally:
+            global_observer = prev
+
+
+    return log_wrapper
 
 
 class AssertEvent(object):
