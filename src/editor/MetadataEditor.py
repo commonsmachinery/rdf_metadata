@@ -163,7 +163,7 @@ class MetadataEditor(object):
             if (o is obj or
                 (isinstance(o, model.Predicate)
                  and o.object is obj
-                 and isinstance(o, model.BlankNode))):
+                 and isinstance(obj, model.BlankNode))):
                 return i
 
             if self.tree_store.iter_has_child(i):
