@@ -20,9 +20,68 @@ from . import observer
 # Events sent to observers of the model when it updates
 #
 
-class PredicateAdded(observer.Event): pass
-class PredicateObjectChanged(observer.Event): pass
+class NodeAdded(observer.Event):
+    """Common base for ResourceNodeAdded and BlankNodeAdded.
 
+    Parameter:
+
+    - node: the new node 
+    """
+
+
+class ResourceNodeAdded(NodeAdded):
+    """A resource node has been added to the model.
+
+    Parameter:
+
+    - node: the new node 
+    """
+    
+
+class BlankNodeAdded(NodeAdded):
+    """A blank node has been added to the model.
+
+    Parameter:
+
+    - node: the new node 
+    """
+
+
+class PredicateAdded(observer.Event):
+    """A predicate has been added to the model.  Parameters:
+
+    - predicate: the new predicate
+    - node: the subject node of the predicate
+    """
+    pass
+    
+class PredicateObjectChanged(observer.Event): 
+    """The object of a predicate has changed.  Parameters:
+
+    - predicate: the predicate 
+    - node: the subject node of the predicate (if received
+            via the SubjectNode or the Root)
+    """
+    pass
+
+class PredicateRemoved(observer.Event):
+    """A predicate has been removed.  Parameters:
+
+    - predicate: the removed predicate object
+    - node: subject node of the predicate (if received
+            via the SubjectNode or the Root)
+    """
+    pass
+
+
+class NodeRemoved(observer.Event):
+    """A resource or blank node has been removed from the model.
+
+    Parameter:
+
+    - node: the removed node
+    """
+    
 
 #
 # Events that are sent to the model to update it when the underlying representation changes
@@ -35,6 +94,52 @@ class PredicateLiteralReprAdded(observer.Event): pass
 class PredicateLiteralReprValueChanged(observer.Event): pass
 class PredicateLiteralReprTypeChanged(observer.Event): pass
 
+
+class ReprChanged(observer.Event):
+    """Base class for events where the repr type has changed,
+    signalled by the old repr.  Parameter:
+
+    - old_repr: the old repr, the source of the event
+    - new_repr: the new repr that the node should use
+    """
+
+class PredicateChangedToNodeRepr(ReprChanged):
+    """Signaled by a property repr when its object should change to a
+    node.  Parameters:
+
+    - old_repr: the old repr, the source of the event
+    - new_repr: the new repr that the node should use
+    - object_uri: the URI for the referenced node
+    """
+
+class PredicateChangedToLiteralRepr(ReprChanged): 
+    """Signaled by a property repr when its object should change to a
+    literal.  Parameters:
+
+    - old_repr: the old repr, the source of the event
+    - new_repr: the new repr that the node should use
+    - value: the literal value
+    - type_uri: data type URI, or None
+    """
+
+
+class NodeReprRemoved(observer.Event):
+    """A subject node repr has been removed from the DOM tree.
+
+    Parameters:
+
+    - repr: the removed Repr
+    """
+
+class PredicateReprRemoved(observer.Event):
+    """A predicate representation has been removed from the DOM tree.
+
+    Parameters:
+
+    - repr: the removed Repr
+    """
+    
+    
 class Root(observer.Subject, collections.Mapping):
     def __init__(self, repr):
         super(Root, self).__init__()
@@ -61,7 +166,15 @@ class Root(observer.Subject, collections.Mapping):
         
 
     def _on_node_update(self, event):
-        # Just pass on the event to allow model users to choose
+        if isinstance(event, NodeRemoved):
+            node = event.node
+            node.unregister_observer(self._on_node_update)
+            if isinstance(node, ResourceNode):
+                del self.resource_nodes[node.uri]
+            else:
+                del self.blank_nodes[node.uri]
+
+        # Pass on the event to allow model users to choose
         # whether to listen to root updates or node updates
         self.notify_observers(event)
 
@@ -76,6 +189,7 @@ class Root(observer.Subject, collections.Mapping):
             node = ResourceNode(self, uri)
             self.resource_nodes[uri] = node
             node.register_observer(self._on_node_update)
+            self.notify_observers(ResourceNodeAdded(node = node))
 
         return node
 
@@ -90,6 +204,7 @@ class Root(observer.Subject, collections.Mapping):
             node = BlankNode(self, id)
             self.blank_nodes[id] = node
             node.register_observer(self._on_node_update)
+            self.notify_observers(BlankNodeAdded(node = node))
 
         return node
 
@@ -218,6 +333,11 @@ class SubjectNode(Node, collections.Sequence):
             node = LiteralNode(self.root, event.repr, event.value, event.type_uri)
             self._add_predicate(event.repr, event.predicate_uri, node)
 
+        elif isinstance(event, NodeReprRemoved):
+            for r in self.reprs:
+                if r.is_event_source(event):
+                    self._repr_removed(r)
+
 
     def _add_predicate(self, repr, uri, object):
         pred = Predicate(self.root, repr, uri, object)
@@ -226,14 +346,35 @@ class SubjectNode(Node, collections.Sequence):
         self.notify_observers(PredicateAdded(node = self, predicate = pred))
 
         # Listen on predicate model updates
-        # TODO: remember to unregister when removing the predicate
         pred.register_observer(self._on_predicate_update)
 
 
+    def _repr_removed(self, r):
+        r.unregister_observer(self._on_repr_update)
+        self.reprs.remove(r)
+        if not self.reprs and not self.predicates:
+            # No more references to us, so we disappear.
+            self.notify_observers(NodeRemoved(node = self))
+            self.root = None
+
+
     def _on_predicate_update(self, event):
-        # Just pass on the event to allow model users to choose
+        if isinstance(event, PredicateRemoved):
+            # This must be a predicate of ours
+            self.predicates.remove(event.predicate)
+            event.predicate.unregister_observer(self._on_predicate_update)
+
+        # Pass on the event to allow model users to choose
         # whether to listen to node updates or predicate updates
+        event.node = self
         self.notify_observers(event)
+
+        if isinstance(event, PredicateRemoved):
+            if not self.reprs and not self.predicates:
+                # No more references to us, so we disappear (but not before
+                # passing on the PredicateRemoved that triggered this
+                self.notify_observers(NodeRemoved(node = self))
+                self.root = None
 
 
     def add_literal_node(self, qname, value = '', type_uri = None):
@@ -272,6 +413,9 @@ class ResourceNode(SubjectNode):
 
         return s
 
+    def __repr__(self):
+        return '<ResourceNode {0} at 0x{1:#x}>'.format(self.uri, id(self))
+
 
 class BlankNode(SubjectNode):
     def __str__(self):
@@ -281,6 +425,9 @@ class BlankNode(SubjectNode):
             s += '{0}\t{1} .\n'.format(self.uri, pred)
 
         return s
+
+    def __repr__(self):
+        return '<BlankNode {0} at 0x{1:#x}>'.format(self.uri, id(self))
 
 
 class LiteralNode(Node):
@@ -326,12 +473,49 @@ class Predicate(observer.Subject, object):
         if isinstance(object, LiteralNode):
             object.repr.register_observer(self._on_object_repr_update)
 
-        # TODO: remember to unregister from the object.repr when
-        # object is changed later
-        
+    def remove(self):
+        self.repr.remove()
+
     def _on_repr_update(self, event):
-        pass
-    
+        if isinstance(event, PredicateReprRemoved):
+            assert self.repr.is_event_source(event)
+
+            # Just signal and let the SubjectNode remove us
+            self.notify_observers(PredicateRemoved(predicate = self))
+            self.root = None
+
+            self.repr.unregister_observer(self._on_repr_update)
+            self.repr = None
+
+            if isinstance(self.object, LiteralNode):
+                self.object.repr.unregister_observer(self._on_object_repr_update)
+
+        elif isinstance(event, PredicateChangedToLiteralRepr):
+            if isinstance(self.object, LiteralNode):
+                self.object.repr.unregister_observer(self._on_object_repr_update)
+
+            self.object = LiteralNode(self.root, event.new_repr, event.value, event.type_uri)
+            self.object.repr.register_observer(self._on_object_repr_update)
+
+            self._change_repr(event.new_repr)
+            self.notify_observers(PredicateObjectChanged(
+                    predicate = self, object = self.object))
+
+        elif isinstance(event, PredicateChangedToNodeRepr):
+            if isinstance(self.object, LiteralNode):
+                self.object.repr.unregister_observer(self._on_object_repr_update)
+
+            self.object = self.root._get_node(event.object_uri)
+            self._change_repr(event.new_repr)
+            self.notify_observers(PredicateObjectChanged(
+                    predicate = self, object = self.object))
+            
+
+    def _change_repr(self, repr):
+        self.repr.unregister_observer(self._on_repr_update)
+        self.repr = repr
+        self.repr.register_observer(self._on_repr_update)
+
     def _on_object_repr_update(self, event):
         if (isinstance(event, PredicateLiteralReprValueChanged)
             or isinstance(event, PredicateLiteralReprTypeChanged)):
@@ -355,3 +539,5 @@ class Predicate(observer.Subject, object):
         else:
             return '<{0}>\t""'.format(self.uri)
 
+    def __repr__(self):
+        return '<Predicate {0} at 0x{1:#x}>'.format(self.uri, id(self))

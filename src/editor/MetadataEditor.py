@@ -76,6 +76,16 @@ class MetadataEditor(object):
                (isinstance(obj, model.Predicate) and \
                 isinstance(obj.object, model.BlankNode))
 
+    def remove_enabled(self):
+        tree_model, tree_iter = self.tree_view.get_selection().get_selected()
+        if tree_iter:
+            obj = tree_model[tree_iter][0]
+        else:
+            obj = None
+
+        return isinstance(obj, model.Predicate) 
+
+
     def _populate_tree_store(self, root):
         # Always start with the default resource, if it exists
         res = root.get("")
@@ -98,6 +108,9 @@ class MetadataEditor(object):
         # Add the predicates and their target objects
         for pred in res:
             self._add_predicate_to_tree(pred, res_iter)
+
+        return res_iter
+    
 
     def _add_predicate_to_tree(self, pred, parent):
         if isinstance(pred.object, model.LiteralNode):
@@ -148,7 +161,9 @@ class MetadataEditor(object):
         while i is not None:
             o = self.tree_store[i][0]
             if (o is obj or
-                (isinstance(o, model.Predicate) and o.object is obj)):
+                (isinstance(o, model.Predicate)
+                 and o.object is obj
+                 and isinstance(o, model.BlankNode))):
                 return i
 
             if self.tree_store.iter_has_child(i):
@@ -177,16 +192,73 @@ class MetadataEditor(object):
     def _model_observer(self, event):
         if isinstance(event, model.PredicateAdded):
             tree_iter = self._lookup_tree_object(event.node)
-            i = self._add_predicate_to_tree(event.predicate, tree_iter)
-            self.tree_view.get_selection().select_iter(i)
+            if tree_iter:
+                i = self._add_predicate_to_tree(event.predicate, tree_iter)
+                self.tree_view.get_selection().select_iter(i)
 
         elif isinstance(event, model.PredicateObjectChanged):
-            # TODO: catch changes from Literal to resource refs
-            if not isinstance(event.predicate.object, model.LiteralNode):
-                return
-            
             tree_iter = self._lookup_tree_object(event.predicate)
             if tree_iter:
-                pass
-                self.tree_store[tree_iter][2] = event.object.value
-                self.tree_store[tree_iter][3] = 'Literal'
+                self._update_predicate(tree_iter, event.predicate)
+
+        elif isinstance(event, model.PredicateRemoved):
+            tree_iter = self._lookup_tree_object(event.predicate)
+            if tree_iter:
+                # TODO: should we check that this row doesn't have
+                # subitems?
+                self.tree_store.remove(tree_iter)
+
+        elif isinstance(event, model.NodeRemoved):
+            tree_iter = self._lookup_tree_object(event.node)
+            if tree_iter:
+                # TODO: should we check that this row doesn't have
+                # subitems?
+                self.tree_store.remove(tree_iter)
+                
+        elif isinstance(event, model.ResourceNodeAdded):
+            tree_iter = self._add_resource_to_tree(event.node)
+
+            # Show the new node
+            path = self.tree_store.get_path(tree_iter)
+            self.tree_view.expand_row(path, True)
+
+        # Blank nodes are added by reference from a predicate
+
+
+    def _update_predicate(self, tree_iter, predicate):
+        if isinstance(predicate.object, model.LiteralNode):
+            self.tree_store[tree_iter][2] = predicate.object.value
+            self.tree_store[tree_iter][3] = 'Literal'
+
+        elif isinstance(predicate.object, model.ResourceNode):
+            self.tree_store[tree_iter][2] = str(predicate.object.uri)
+            self.tree_store[tree_iter][3] = 'Resource ref'
+
+        elif isinstance(predicate.object, model.BlankNode):
+            node = predicate.object
+            if node in self.added_to_tree_store:
+                # Only external IDs should be possible to add more than once
+                assert node.uri.external
+
+                # Just set a reference
+                self.tree_store[tree_iter][2] = str(node.uri)
+                self.tree_store[tree_iter][3] = 'k node ref'
+
+            else:
+                self.added_to_tree_store.add(node)
+
+                if node.uri.external:
+                    uri = str(node.uri)
+                else:
+                    uri = ''
+
+                self.tree_store[tree_iter][2] = uri
+                self.tree_store[tree_iter][3] = 'Blank node'
+
+                # Add the predicates and their target objects
+                for node_pred in node:
+                    self._add_predicate_to_tree(node_pred, tree_iter)
+
+                # Show the new node
+                path = self.tree_store.get_path(tree_iter)
+                self.tree_view.expand_row(path, True)

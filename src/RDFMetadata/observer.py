@@ -7,13 +7,7 @@
 # Distributed under an GPLv2 license, please see LICENSE in the top dir.
 
 import sys
-
-# Set this to a function taking args (subject, event) to see everything sent
-global_observer = None
-
-def log_observer(subject, event):
-    sys.stderr.write('{0}: {1}\n'.format(repr(subject), event))
-
+from functools import wraps
 
 class Event(object):
     def __init__(self, **kws):
@@ -113,6 +107,36 @@ class Subject(object):
             self.notify_observers(ev)
 
 
+#
+# Debug and unit test support code
+#
+            
+# Set this to a function taking args (subject, event) to see everything sent
+global_observer = None
+
+def log_observer(subject, event):
+    sys.stderr.write('{0}: {1}\n'.format(repr(subject), event))
+
+
+def log_function_events(f):
+    """Decorator which will enable logging of events generated during
+    calls to the decorated function.
+    """
+
+    @wraps(f)
+    def log_wrapper(*args, **kw):
+        global global_observer
+        prev = global_observer
+        try:
+            global_observer = log_observer
+            return f(*args, **kw)
+        finally:
+            global_observer = prev
+
+
+    return log_wrapper
+
+
 class AssertEvent(object):
     """Helper class for unit tests:
 
@@ -120,17 +144,24 @@ class AssertEvent(object):
     events is notified by a subject:
 
     with AssertEvent(self, subject, EventClass1, EventClass2...):
-        ...
+        test code...
+
+    EventClassN can also be a tuple of (EventClass, dict) where the
+    class will check that the all items in dict are present as event
+    parameters.
     """
     
     def __init__(self, test, subject, *event_classes):
         self.test = test
         self.subject = subject
-        self.expected = event_classes
-        self.actual = []
+        self.expected = [v[0] if isinstance(v, tuple) else v
+                         for v in event_classes]
+        self.params = [v[1] if isinstance(v, tuple) else None
+                       for v in event_classes]
+        self.events = []
         
     def _on_event(self, e):
-        self.actual.append(e.__class__)
+        self.events.append(e)
 
     def __enter__(self):
         self.subject.register_observer(self._on_event)
@@ -139,5 +170,22 @@ class AssertEvent(object):
         self.subject.unregister_observer(self._on_event)
 
         if exc_type is None:
-            self.test.assertSequenceEqual(self.expected, self.actual)
+            self.test.assertSequenceEqual(self.expected,
+                                          [e.__class__ for e in self.events])
+
+            # Now we know the lists are equally long
+            for i in range(len(self.events)):
+                p = self.params[i]
+                event = self.events[i]
+                if p:
+                    for k, v in p.iteritems():
+                        self.test.assertTrue(
+                            hasattr(event, k),
+                            'missing {0} in {1}'.format(k, event))
+                        ev = getattr(event, k)
+                        self.test.assertEqual(
+                            v, ev,
+                            'index {0}: {1} in {2}: {3!r} != {4!r}'.format(
+                                i, k, event, v, ev))
+                        
 

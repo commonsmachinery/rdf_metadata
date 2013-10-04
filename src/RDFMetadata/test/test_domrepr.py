@@ -14,6 +14,7 @@ from xml.dom import minidom
 import xpath
 
 from .. import parser, model, domrepr
+from .. import observer
 
 
 def get_root(xml):
@@ -86,7 +87,12 @@ class TestLiteralNode(CommonTest):
         # Change value
         #
 
-        obj.set_value('new value')
+        # Two events, unfortunately, since the content is first dropped,
+        # then a new text node is set.
+        with observer.AssertEvent(self, r,
+                                  model.PredicateObjectChanged,
+                                  model.PredicateObjectChanged):
+            obj.set_value('new value')
         self.assertIsNone(obj.type_uri)
 
         # Same repr, new value
@@ -99,7 +105,8 @@ class TestLiteralNode(CommonTest):
         # Set type_uri
         #
 
-        obj.set_type_uri('test:type')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_type_uri('test:type')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # Same repr, added attribute
@@ -110,7 +117,8 @@ class TestLiteralNode(CommonTest):
         # Drop value
         #
 
-        obj.set_value('')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_value('')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # New repr, no value
@@ -122,7 +130,8 @@ class TestLiteralNode(CommonTest):
         # Set value again
         #
 
-        obj.set_value('set again')
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_value('set again')
         self.assertEqual(obj.type_uri, 'test:type')
 
         # New repr, new value
@@ -134,7 +143,8 @@ class TestLiteralNode(CommonTest):
         # Drop type
         #
 
-        obj.set_type_uri(None)
+        with observer.AssertEvent(self, r, model.PredicateObjectChanged):
+            obj.set_type_uri(None)
         self.assertIsNone(obj.type_uri)
 
         # Same repr, no attr
@@ -158,8 +168,9 @@ class TestElementNode(CommonTest):
         res = r['']
         self.assertEqual(len(res), 0)
 
-        res.add_literal_node(
-            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
+        with observer.AssertEvent(self, r, model.PredicateAdded):
+            res.add_literal_node(
+                model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
 
         # Check that model updated
         self.assertEqual(len(res), 1)
@@ -189,9 +200,10 @@ class TestElementNode(CommonTest):
         res = r['']
         self.assertEqual(len(res), 0)
 
-        res.add_literal_node(
-            model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
-            "value", "test:type")
+        with observer.AssertEvent(self, r, model.PredicateAdded):
+            res.add_literal_node(
+                model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
+                "value", "test:type")
 
         # Check that model updated
         self.assertEqual(len(res), 1)
@@ -211,3 +223,315 @@ class TestElementNode(CommonTest):
         xp.assertValue('test:type', "/rdf:RDF/rdf:Description/dc:title/@rdf:datatype")
         
         
+    # @observer.log_function_events
+    def test_remove_literal_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:title>Test</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        p = res[0]
+        
+        with observer.AssertEvent(self, r, model.PredicateRemoved):
+            p.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:title")
+
+
+    # @observer.log_function_events
+    def test_remove_empty_property_resource(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:source rdf:resource="http://test/" />
+    <dc:source rdf:resource="http://test/" />
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        self.assertTrue("http://test/" in r)
+        
+        res = r['']
+        self.assertEqual(len(res), 2)
+        p0 = res[0]
+        p1 = res[1]
+
+        # Removing the first reference will not remove the resource node
+        with observer.AssertEvent(self, r,
+                                  model.PredicateRemoved):
+            p0.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 1)
+        self.assertTrue("http://test/" in r)
+
+        # Check that XML updated
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:source")
+
+
+        # Since removing the remaining reference to this resource, it should
+        # be removed from the model wholly
+        with observer.AssertEvent(self, r,
+                                  model.PredicateRemoved,
+                                  model.NodeRemoved):
+            p1.remove()
+
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+        self.assertTrue("http://test/" not in r)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:source")
+
+
+    #@observer.log_function_events
+    def test_remove_resource_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <rdf:Description>
+        <dc:title>Test</dc:title>
+      </rdf:Description>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        creator = res[0]
+
+        blank = creator.object
+        self.assertEqual(len(blank), 1)
+        title = blank[0]
+        
+        with observer.AssertEvent(
+            self, r,
+            (model.PredicateRemoved, { 'predicate': creator }),
+            (model.PredicateRemoved, { 'predicate': title }),
+            (model.NodeRemoved, { 'node': blank }),
+            ):
+            creator.remove()
+            
+        # Check that model updated
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(r.blank_nodes), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator")
+
+
+    #@observer.log_function_events
+    def test_remove_typed_node_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:cc="http://creativecommons.org/ns#">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <cc:Agent>
+        <dc:title>Test</dc:title>
+      </cc:Agent>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        # cc:Agent is an invention in Inkscape - doesn't really exist in cc:
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        # There's two resources: "" and cc:Agent
+        self.assertEqual(len(r), 2)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        creator = res[0]
+
+        blank = creator.object
+
+        # Remember the implied rdf:type property too
+        self.assertEqual(len(blank), 2)
+        rdftype = blank[0]
+        type_node = rdftype.object
+        title = blank[1]
+        
+        with observer.AssertEvent(
+            self, r,
+            (model.PredicateRemoved, { 'predicate': creator }),
+            (model.PredicateRemoved, { 'predicate': title }),
+            (model.PredicateRemoved, { 'predicate': rdftype }),
+            (model.NodeRemoved, { 'node': blank }),
+            (model.NodeRemoved, { 'node': type_node}),
+            ):
+            creator.remove()
+            
+        # Check that model updated: cc:Agent should be gone now
+        self.assertEqual(len(r), 1)
+        self.assertEqual(len(res), 0)
+        self.assertEqual(len(r.blank_nodes), 0)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator")
+
+
+    #@observer.log_function_events
+    def test_remove_implied_type_property(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:cc="http://creativecommons.org/ns#">
+  <rdf:Description rdf:about="">
+    <dc:creator>
+      <cc:Agent>
+        <dc:title>Test</dc:title>
+      </cc:Agent>
+    </dc:creator>
+  </rdf:Description>
+</rdf:RDF>
+''')
+        # cc:Agent is an invention in Inkscape - doesn't really exist in cc:
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        # There's two resources: "" and cc:Agent
+        self.assertEqual(len(r), 2)
+
+        res = r['']
+        self.assertEqual(len(res), 1)
+        creator = res[0]
+
+        blank = creator.object
+
+        # Get the implied rdf:type property too
+        self.assertEqual(len(blank), 2)
+        rdftype = blank[0]
+        self.assertPredicate(rdftype, domrepr.RDF_NS + 'type',
+                             model.ResourceNode, domrepr.ImpliedTypeProperty)
+
+        type_node = rdftype.object
+
+        title = blank[1]
+        
+        with observer.AssertEvent(
+            self, r,
+            # Moving predicate to new rdf:Description element
+            (model.PredicateRemoved, { 'predicate': title }),
+
+            # Unlinking cc:Agent
+            (model.PredicateRemoved, { 'predicate': rdftype }),
+            (model.NodeRemoved, { 'node': blank }),
+            (model.NodeRemoved, { 'node': type_node}),
+
+            # Which turns dc:creator temporarily into an empty literal
+            (model.PredicateObjectChanged, { 'predicate': creator }),
+
+            # The re-added node and dc:title
+            model.BlankNodeAdded,
+            model.PredicateAdded,
+
+            # Finally dc:creator is again a resource property when the
+            # new rdf:Description is added
+            (model.PredicateObjectChanged, { 'predicate': creator }),
+            ):
+            rdftype.remove()
+            
+        # Check that model updated: cc:Agent should now be
+        # rdf:Description and the type node is gone
+        self.assertEqual(len(r), 1)
+        self.assertEqual(len(r.blank_nodes), 1)
+
+        self.assertEqual(len(res), 1)
+        self.assertIs(creator, res[0])
+
+        blank = creator.object
+
+        # Just dc:title now
+        self.assertEqual(len(blank), 1)
+        self.assertPredicate(blank[0], 'http://purl.org/dc/elements/1.1/title',
+                             model.LiteralNode, domrepr.LiteralProperty)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/rdf:Description/dc:creator/cc:Work")
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:creator/rdf:Description")
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:creator/rdf:Description/dc:title")
+
+
+    #@observer.log_function_events
+    def test_remove_implied_type_property_from_root(self):
+        r = get_root('''<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:cc="http://creativecommons.org/ns#">
+  <cc:Work rdf:about="">
+    <dc:title>Test</dc:title>
+  </cc:Work>
+</rdf:RDF>
+''')
+        # cc:Agent is an invention in Inkscape - doesn't really exist in cc:
+        
+        xp = XPathAsserts(self, r.repr.element)
+
+        # There's two resources: "" and cc:Work
+        self.assertEqual(len(r), 2)
+
+        res = r['']
+        self.assertEqual(len(res), 2)
+
+        # Get the implied rdf:type property
+        rdftype = res[0]
+        self.assertPredicate(rdftype, domrepr.RDF_NS + 'type',
+                             model.ResourceNode, domrepr.ImpliedTypeProperty)
+
+        type_node = rdftype.object
+
+        title = res[1]
+        
+        with observer.AssertEvent(
+            self, r,
+            # Moving predicate to new rdf:Description element
+            (model.PredicateRemoved, { 'predicate': title }),
+
+            # Unlinking cc:Agent
+            (model.PredicateRemoved, { 'predicate': rdftype }),
+            (model.NodeRemoved, { 'node': res }),
+            (model.NodeRemoved, { 'node': type_node}),
+
+            # The re-added node and dc:title
+            model.ResourceNodeAdded,
+            model.PredicateAdded,
+            ):
+            rdftype.remove()
+            
+        # Check that model updated: cc:Work should now be
+        # rdf:Description and the type node is gone
+        self.assertEqual(len(r), 1)
+
+        # Just dc:title now
+        res = r['']
+        self.assertEqual(len(res), 1)
+        self.assertPredicate(res[0], 'http://purl.org/dc/elements/1.1/title',
+                             model.LiteralNode, domrepr.LiteralProperty)
+
+        # Check that XML updated
+        xp.assertNodeCount(0, "/rdf:RDF/cc:Work")
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description")
+        xp.assertNodeCount(1, "/rdf:RDF/rdf:Description/dc:title")

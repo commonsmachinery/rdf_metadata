@@ -162,7 +162,7 @@ class RDFXMLParser(object):
             self.parse_property_element(parent, el)
 
             
-    def parse_property_element(self, parent, element):
+    def parse_property_element(self, parent, element, reparsing = False):
         """7.2.14: http://www.w3.org/TR/rdf-syntax-grammar/#propertyElt
 
         propertyElt:
@@ -175,6 +175,12 @@ class RDFXMLParser(object):
            emptyPropertyElt
 
         This code does not handle reification.
+
+        If reparsing is True, then a property element is updating
+        itself after its attributes or contents changed and all
+        notifications should reflect that.  parent is then really the
+        existing property repr, but that's fine since it will have the
+        right namespace setup and will take care of the notifications.
         """
 
 
@@ -187,7 +193,7 @@ class RDFXMLParser(object):
         element_nodes = [n for n in element.childNodes if n.nodeType == n.ELEMENT_NODE]
         
         if element_nodes:
-            return self.parse_resource_property_element(parent, element, element_nodes)
+            return self.parse_resource_property_element(parent, element, element_nodes, reparsing)
             
         # Step 3: literal value, or empty.  Normalize into one node or none
         element.normalize()
@@ -196,12 +202,12 @@ class RDFXMLParser(object):
         
         if text_nodes:
             text = text_nodes[0].data
-            return self.parse_literal_property_element(parent, element, text)
+            self.parse_literal_property_element(parent, element, text, reparsing)
         else:
-            return self.parse_empty_property_element(parent, element)
+            self.parse_empty_property_element(parent, element, reparsing)
 
 
-    def parse_resource_property_element(self, parent, element, subelements):
+    def parse_resource_property_element(self, parent, element, subelements, reparsing):
         """7.2.15: http://www.w3.org/TR/rdf-syntax-grammar/#resourcePropertyElt
 
         resourcePropertyElt:
@@ -219,16 +225,23 @@ class RDFXMLParser(object):
         repr = domrepr.Repr(domrepr.ResourceProperty(self.repr_root, element, ns))
         node_uri = self.parse_node_element(repr, subelements[0])
 
-        # Tell node about the new predicate
-        parent.notify_observers(
-            model.PredicateNodeReprAdded(
-                    parent = parent,
-                    repr = repr,
-                    predicate_uri = get_element_uri(element),
-                    object_uri = node_uri))
+        if reparsing:
+            event = model.PredicateChangedToNodeRepr(
+                old_repr = parent,
+                new_repr = repr,
+                object_uri = node_uri)
+        else:
+            event = model.PredicateNodeReprAdded(
+                parent = parent,
+                repr = repr,
+                predicate_uri = get_element_uri(element),
+                object_uri = node_uri)
+
+        # Tell node about the new predicate repr
+        parent.notify_observers(event)
 
 
-    def parse_literal_property_element(self, parent, element, text):
+    def parse_literal_property_element(self, parent, element, text, reparsing):
         """7.2.16: http://www.w3.org/TR/rdf-syntax-grammar/#literalPropertyElt
 
         literalPropertyElt:
@@ -248,15 +261,24 @@ class RDFXMLParser(object):
 
         repr = domrepr.Repr(domrepr.LiteralProperty(self.repr_root, element, ns))
 
-        parent.notify_observers(
-            model.PredicateLiteralReprAdded(parent = parent,
-                                            repr = repr,
-                                            predicate_uri = get_element_uri(element),
-                                            value = text,
-                                            type_uri = type_uri))
+        if reparsing:
+            event = model.PredicateChangedToLiteralRepr(
+                old_repr = parent,
+                new_repr = repr,
+                value = text,
+                type_uri = type_uri)
+        else:
+            event = model.PredicateLiteralReprAdded(
+                parent = parent,
+                repr = repr,
+                predicate_uri = get_element_uri(element),
+                value = text,
+                type_uri = type_uri)
+
+        parent.notify_observers(event)
 
 
-    def parse_empty_property_element(self, parent, element):
+    def parse_empty_property_element(self, parent, element, reparsing):
         """7.2.21: http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
 
         emptyPropertyElt:
@@ -290,13 +312,17 @@ class RDFXMLParser(object):
                                                     repr = repr,
                                                     uri = resource_uri))
             
-            # Tell node about the new predicate
-            parent.notify_observers(
-                model.PredicateNodeReprAdded(
+            if reparsing:
+                event = model.PredicateChangedToNodeRepr(
+                    old_repr = parent,
+                    new_repr = repr,
+                    object_uri = resource_uri)
+            else:
+                event = model.PredicateNodeReprAdded(
                     parent = parent,
                     repr = repr,
                     predicate_uri = get_element_uri(element),
-                    object_uri = resource_uri))
+                    object_uri = resource_uri)
 
         elif node_id:
             uri = model.NodeID(node_id)
@@ -311,26 +337,38 @@ class RDFXMLParser(object):
                                                  id = uri))
             
             # Tell node about the new predicate
-
-            parent.notify_observers(
-                model.PredicateNodeReprAdded(
+            if reparsing:
+                event = model.PredicateChangedToNodeRepr(
+                    old_repr = parent,
+                    new_repr = repr,
+                    object_uri = uri)
+            else:
+                event = model.PredicateNodeReprAdded(
                     parent = parent,
                     repr = repr,
                     predicate_uri = get_element_uri(element),
-                    object_uri = uri))
+                    object_uri = uri)
 
         else:
             repr = domrepr.Repr(domrepr.EmptyPropertyLiteral(
                     self.repr_root, element, ns))
 
-            parent.notify_observers(
-                model.PredicateLiteralReprAdded(parent = parent,
-                                                repr = repr,
-                                                predicate_uri = get_element_uri(element),
-                                                value = "",
-                                                type_uri = None))
+            if reparsing:
+                event = model.PredicateChangedToLiteralRepr(
+                    old_repr = parent,
+                    new_repr = repr,
+                    value = '',
+                    type_uri = None)
+            else:
+                event = model.PredicateLiteralReprAdded(
+                    parent = parent,
+                    repr = repr,
+                    predicate_uri = get_element_uri(element),
+                    value = "",
+                    type_uri = None)
 
-            
+        # Tell node about the new (or reparsed) predicate
+        parent.notify_observers(event)
 
 
 def iter_subelements(element):
