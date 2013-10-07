@@ -169,7 +169,7 @@ class TestElementNode(CommonTest):
         self.assertEqual(len(res), 0)
 
         with observer.AssertEvent(self, r, model.PredicateAdded):
-            res.add_literal_node(
+            res.add_predicate_literal(
                 model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"))
 
         # Check that model updated
@@ -201,7 +201,7 @@ class TestElementNode(CommonTest):
         self.assertEqual(len(res), 0)
 
         with observer.AssertEvent(self, r, model.PredicateAdded):
-            res.add_literal_node(
+            res.add_predicate_literal(
                 model.QName("http://purl.org/dc/elements/1.1/", "dc", "title"),
                 "value", "test:type")
 
