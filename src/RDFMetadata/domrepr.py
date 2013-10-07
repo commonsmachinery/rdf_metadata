@@ -135,11 +135,11 @@ class Repr(observer.Subject, object):
     def set_datatype(self, type_uri):
         self._set_repr(self.repr.set_datatype(type_uri))
 
-    def add_literal_node(self, node, qname, value, type_uri):
-        self._set_repr(self.repr.add_literal_node(node, qname, value, type_uri))
+    def add_predicate_literal(self, node, qname, value, type_uri):
+        self._set_repr(self.repr.add_predicate_literal(node, qname, value, type_uri))
 
-    def add_blank_node(self, node, qname, node_id=None):
-        self._set_repr(self.repr.add_blank_node(node, qname, node_id))
+    def add_predicate_blank(self, node, qname, node_id=None):
+        self._set_repr(self.repr.add_predicate_blank(node, qname, node_id))
 
     def remove(self):
         """Remove this repr from the DOM tree.
@@ -188,11 +188,11 @@ class TypedRepr(observer.Subject, object):
     def set_datatype(self, type_uri):
         raise UnsupportedFunctionError('set_datatype', self)
 
-    def add_literal_node(self, node, qname, value, type_uri):
-        raise UnsupportedFunctionError('add_literal_node', self)
+    def add_predicate_literal(self, node, qname, value, type_uri):
+        raise UnsupportedFunctionError('add_predicate_literal', self)
 
-    def add_blank_node(self, node, qname, node_id=None):
-        raise UnsupportedFunctionError('add_blank_node', self)
+    def add_predicate_blank(self, node, qname, node_id=None):
+        raise UnsupportedFunctionError('add_predicate_blank', self)
 
     def remove(self):
         raise UnsupportedFunctionError('remove', self)
@@ -220,7 +220,7 @@ class ElementNode(TypedRepr):
     Not instantiated directly.
     """
     
-    def add_literal_node(self, node, qname, value, type_uri):
+    def add_predicate_literal(self, node, qname, value, type_uri):
         assert isinstance(node, model.SubjectNode)
         
         # Build XML:
@@ -241,7 +241,7 @@ class ElementNode(TypedRepr):
         self.element.appendChild(element)
         return self
 
-    def add_blank_node(self, node, qname, node_id=None):
+    def add_predicate_blank(self, node, qname, node_id=None):
         assert isinstance(node, model.SubjectNode)
 
         # Build XML:

@@ -377,17 +377,17 @@ class SubjectNode(Node, collections.Sequence):
                 self.root = None
 
 
-    def add_literal_node(self, qname, value = '', type_uri = None):
+    def add_predicate_literal(self, qname, value = '', type_uri = None):
         # This must be true, right?
         assert self.reprs
 
-        self.reprs[0].add_literal_node(self, qname, value, type_uri)
+        self.reprs[0].add_predicate_literal(self, qname, value, type_uri)
 
-    def add_blank_node(self, qname, node_id=None):
+    def add_predicate_blank(self, qname, node_id=None):
         # This must be true, right?
         assert self.reprs
 
-        self.reprs[0].add_blank_node(self, qname, node_id)
+        self.reprs[0].add_predicate_blank(self, qname, node_id)
 
     #
     # Support read-only sequence interface to access the predicates

@@ -280,9 +280,9 @@ class MainWindow(Gtk.Window):
             editor.tree_view.expand_row(path, False)
 
             if dialog.get_blank_node():
-                obj.add_blank_node(dialog.get_property())
+                obj.add_predicate_blank(dialog.get_property())
             else:
-                obj.add_literal_node(dialog.get_property(), dialog.get_value(), None)
+                obj.add_predicate_literal(dialog.get_property(), dialog.get_value(), None)
         dialog.destroy()
             
 
