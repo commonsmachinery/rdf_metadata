@@ -204,15 +204,15 @@ class MetadataEditor(object):
         elif isinstance(event, model.PredicateRemoved):
             tree_iter = self._lookup_tree_object(event.predicate)
             if tree_iter:
-                # TODO: should we check that this row doesn't have
-                # subitems?
+                # TODO: if there's still subrows here for an inlined
+                # blank node, they should be moved to another
+                # reference of the blank node.  Unlikely to happen,
+                # though.
                 self.tree_store.remove(tree_iter)
 
-        elif isinstance(event, model.NodeRemoved):
+        elif isinstance(event, model.ResourceNodeRemoved):
             tree_iter = self._lookup_tree_object(event.node)
             if tree_iter:
-                # TODO: should we check that this row doesn't have
-                # subitems?
                 self.tree_store.remove(tree_iter)
                 
         elif isinstance(event, model.ResourceNodeAdded):
@@ -222,7 +222,8 @@ class MetadataEditor(object):
             path = self.tree_store.get_path(tree_iter)
             self.tree_view.expand_row(path, True)
 
-        # Blank nodes are added by reference from a predicate
+        # Blank nodes are added by reference from a predicate, and removed
+        # from the predicate they belong to
 
 
     def _update_predicate(self, tree_iter, predicate):
