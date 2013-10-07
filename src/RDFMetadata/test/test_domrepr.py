@@ -288,7 +288,7 @@ class TestElementNode(CommonTest):
         # be removed from the model wholly
         with observer.AssertEvent(self, r,
                                   model.PredicateRemoved,
-                                  model.NodeRemoved):
+                                  model.ResourceNodeRemoved):
             p1.remove()
 
         # Check that model updated
@@ -328,7 +328,7 @@ class TestElementNode(CommonTest):
             self, r,
             (model.PredicateRemoved, { 'predicate': creator }),
             (model.PredicateRemoved, { 'predicate': title }),
-            (model.NodeRemoved, { 'node': blank }),
+            (model.BlankNodeRemoved, { 'node': blank }),
             ):
             creator.remove()
             
@@ -379,8 +379,8 @@ class TestElementNode(CommonTest):
             (model.PredicateRemoved, { 'predicate': creator }),
             (model.PredicateRemoved, { 'predicate': title }),
             (model.PredicateRemoved, { 'predicate': rdftype }),
-            (model.NodeRemoved, { 'node': blank }),
-            (model.NodeRemoved, { 'node': type_node}),
+            (model.BlankNodeRemoved, { 'node': blank }),
+            (model.ResourceNodeRemoved, { 'node': type_node}),
             ):
             creator.remove()
             
@@ -438,8 +438,8 @@ class TestElementNode(CommonTest):
 
             # Unlinking cc:Agent
             (model.PredicateRemoved, { 'predicate': rdftype }),
-            (model.NodeRemoved, { 'node': blank }),
-            (model.NodeRemoved, { 'node': type_node}),
+            (model.BlankNodeRemoved, { 'node': blank }),
+            (model.ResourceNodeRemoved, { 'node': type_node}),
 
             # Which turns dc:creator temporarily into an empty literal
             (model.PredicateObjectChanged, { 'predicate': creator }),
@@ -512,8 +512,8 @@ class TestElementNode(CommonTest):
 
             # Unlinking cc:Agent
             (model.PredicateRemoved, { 'predicate': rdftype }),
-            (model.NodeRemoved, { 'node': res }),
-            (model.NodeRemoved, { 'node': type_node}),
+            (model.ResourceNodeRemoved, { 'node': res }),
+            (model.ResourceNodeRemoved, { 'node': type_node}),
 
             # The re-added node and dc:title
             model.ResourceNodeAdded,

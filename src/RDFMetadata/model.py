@@ -81,7 +81,23 @@ class NodeRemoved(observer.Event):
 
     - node: the removed node
     """
+
+
+class ResourceNodeRemoved(NodeRemoved):
+    """A resource node has been removed from the model.
+
+    Parameter:
+
+    - node: the removed node
+    """
     
+class BlankNodeRemoved(NodeRemoved):
+    """A blank node has been removed from the model.
+
+    Parameter:
+
+    - node: the removed node
+    """
 
 #
 # Events that are sent to the model to update it when the underlying representation changes
@@ -354,7 +370,7 @@ class SubjectNode(Node, collections.Sequence):
         self.reprs.remove(r)
         if not self.reprs and not self.predicates:
             # No more references to us, so we disappear.
-            self.notify_observers(NodeRemoved(node = self))
+            self.notify_observers(self.REMOVED_EVENT(node = self))
             self.root = None
 
 
@@ -373,7 +389,7 @@ class SubjectNode(Node, collections.Sequence):
             if not self.reprs and not self.predicates:
                 # No more references to us, so we disappear (but not before
                 # passing on the PredicateRemoved that triggered this
-                self.notify_observers(NodeRemoved(node = self))
+                self.notify_observers(self.REMOVED_EVENT(node = self))
                 self.root = None
 
 
@@ -405,6 +421,8 @@ class SubjectNode(Node, collections.Sequence):
 
 
 class ResourceNode(SubjectNode):
+    REMOVED_EVENT = ResourceNodeRemoved
+
     def __str__(self):
         s = '# ResourceNode({0})\n'.format(self.uri)
 
@@ -418,6 +436,8 @@ class ResourceNode(SubjectNode):
 
 
 class BlankNode(SubjectNode):
+    REMOVED_EVENT = BlankNodeRemoved
+
     def __str__(self):
         s = '# BlankNode({0})\n'.format(self.uri)
 
