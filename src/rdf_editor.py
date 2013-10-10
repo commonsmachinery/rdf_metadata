@@ -130,7 +130,7 @@ class MainWindow(Gtk.Window):
         self.paned.add2(self.notebook)
 
         vbox.show_all()
-        self.set_default_size(600, 600)
+        self.set_default_size(800, 600)
         self.paned.set_position(200)
 
         self.filename = None

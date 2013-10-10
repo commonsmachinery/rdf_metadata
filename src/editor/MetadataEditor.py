@@ -103,13 +103,17 @@ class MetadataEditor(object):
         else:
             label = '(default)'
 
-        res_iter = self.tree_store.append(None, [res, label, '', 'Resource'])
+        # Don't add resource nodes with no properties to the list
+        if res.predicates:
+            res_iter = self.tree_store.append(None, [res, label, '', 'Resource'])
 
-        # Add the predicates and their target objects
-        for pred in res:
-            self._add_predicate_to_tree(pred, res_iter)
+            # Add the predicates and their target objects
+            for pred in res:
+                self._add_predicate_to_tree(pred, res_iter)
 
-        return res_iter
+            return res_iter
+        else:
+            return None
     
 
     def _add_predicate_to_tree(self, pred, parent):
@@ -219,8 +223,9 @@ class MetadataEditor(object):
             tree_iter = self._add_resource_to_tree(event.node)
 
             # Show the new node
-            path = self.tree_store.get_path(tree_iter)
-            self.tree_view.expand_row(path, True)
+            if tree_iter is not None:
+                path = self.tree_store.get_path(tree_iter)
+                self.tree_view.expand_row(path, True)
 
         # Blank nodes are added by reference from a predicate, and removed
         # from the predicate they belong to
