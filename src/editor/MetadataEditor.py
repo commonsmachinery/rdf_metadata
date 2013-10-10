@@ -6,11 +6,21 @@
 #
 # Distributed under an GPLv2 license, please see LICENSE in the top dir.
 
-import sys
+import sys, os.path
 from gi.repository import Gtk
+from gi.repository.GdkPixbuf import Pixbuf
 
 from RDFMetadata import model
 from RDFMetadata import vocab
+
+editor_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+
+icon_resource = Pixbuf.new_from_file(os.path.join(editor_dir, 'icons', 'resource.svg'))
+icon_resource_ref = Pixbuf.new_from_file(os.path.join(editor_dir, 'icons', 'resource_ref.svg'))
+icon_blank = Pixbuf.new_from_file(os.path.join(editor_dir, 'icons', 'blank.svg'))
+icon_blank_ref = Pixbuf.new_from_file(os.path.join(editor_dir, 'icons', 'blank_ref.svg'))
+icon_literal = Pixbuf.new_from_file(os.path.join(editor_dir, 'icons', 'literal.svg'))
+
 
 def property_name_data_func(column, cell, tree_model, iter, user_data):
     uri = tree_model[iter][0].uri
@@ -21,6 +31,22 @@ def property_name_data_func(column, cell, tree_model, iter, user_data):
             cell.set_property('text', "{0}:{1}".format(prefix, term.label))
         except LookupError:
             pass
+
+def type_icon_data_func(column, cell, tree_model, iter, user_data):
+    property_type = tree_model[iter][3]
+    if property_type == 'Resource':
+        pixbuf = icon_resource
+    elif property_type == 'Literal':
+        pixbuf = icon_literal
+    elif property_type == 'Resource ref':
+        pixbuf = icon_resource_ref
+    elif property_type == 'Blank node':
+        pixbuf = icon_blank
+    elif property_type == 'Blank node ref':
+        pixbuf = icon_blank_ref
+    else:
+        assert "shouldn't be reached"
+    cell.set_property('pixbuf', pixbuf)
 
 class MetadataEditor(object):
     def __init__(self, root, app):
@@ -42,8 +68,17 @@ class MetadataEditor(object):
         # Set up display of the tree
         self.tree_view = Gtk.TreeView(self.tree_store)
 
+        column = Gtk.TreeViewColumn("Property")
+
+        render = Gtk.CellRendererPixbuf()
+        column.pack_start(render, False)
+        column.set_attributes(render)
+        column.set_cell_data_func(render, type_icon_data_func)
+
         render = Gtk.CellRendererText()
-        column = Gtk.TreeViewColumn("Property", render, text = 1)
+        column.pack_start(render, True)
+        column.set_attributes(render, text=1)
+        
         column.set_sort_column_id(1)
         self.tree_view.append_column(column)
         column.set_cell_data_func(render, property_name_data_func)
@@ -53,14 +88,11 @@ class MetadataEditor(object):
         column = Gtk.TreeViewColumn("Value", render, text = 2)
         self.tree_view.append_column(column)
 
-        render = Gtk.CellRendererText()
-        column = Gtk.TreeViewColumn("Type", render, text = 3)
-        self.tree_view.append_column(column)
-
         self.tree_view.expand_all()
 
         self.tree_view.get_selection().connect(
             'changed', self._on_tree_selection_changed)
+        self.tree_view.set_tooltip_column(3)
         
         self.widget.add(self.tree_view)
 
@@ -248,7 +280,7 @@ class MetadataEditor(object):
 
                 # Just set a reference
                 self.tree_store[tree_iter][2] = str(node.uri)
-                self.tree_store[tree_iter][3] = 'k node ref'
+                self.tree_store[tree_iter][3] = 'Blank node ref'
 
             else:
                 self.added_to_tree_store.add(node)
