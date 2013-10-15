@@ -236,9 +236,9 @@ class Root(observer.Subject, collections.Mapping):
 
 
     def __str__(self):
-        s = '\n'.join(map(str, self.resource_nodes.itervalues()))
+        s = '\n'.join(map(str, self.resource_nodes.values()))
         s += '\n'
-        s += '\n'.join(map(str, self.blank_nodes.itervalues()))
+        s += '\n'.join(map(str, self.blank_nodes.values()))
         return s
 
     #
@@ -291,6 +291,12 @@ class QName(URI):
         else:
             self.tag_name = local_name
         super(QName, self).__init__(ns_uri + local_name)
+
+    def __eq__(self, other):
+        if isinstance(other, QName):
+            return self.ns_uri == other.ns_uri and \
+                   self.ns_prefix == other.ns_prefix and \
+                   self.local_name == other.local_name
 
     def __repr__(self):
         return '{0.__class__.__name__}("{0.ns_uri}", "{0.ns_prefix}", "{0.local_name}")'.format(self)

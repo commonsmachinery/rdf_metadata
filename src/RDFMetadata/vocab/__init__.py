@@ -21,11 +21,11 @@ class Term(object):
 
 vocabularies = {}
 
-import cc
-import dc
-import dcterms
-import rdf
-import xhtml
+from . import cc
+from . import dc
+from . import dcterms
+from . import rdf
+from . import xhtml
 
 for module in [cc, dc, dcterms, rdf, xhtml]:
     vocabularies[module.NS_URI] = module
@@ -65,7 +65,7 @@ def get_term(ns_uri, localname):
     """
 
     ns_dic = vocabularies[ns_uri].__dict__
-    if ns_dic.has_key(localname) and isinstance(ns_dic[localname], Term):
+    if localname in ns_dic and isinstance(ns_dic[localname], Term):
         return ns_dic[localname]
     else:
         raise LookupError("Term %s not found in vocabulary" % localname)
